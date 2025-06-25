@@ -43,6 +43,3 @@ powershell powershell.exe -windowstyle hidden -ExecutionPolicy Bypass -File "C:/
 
 @end
 exit
-
-
-https://bit.ly/CSI_Support
