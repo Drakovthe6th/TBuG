@@ -2,6 +2,8 @@
 # CentralUpdateDeploy.ps1
 # Usage: .\CentralUpdateDeploy.ps1 -UpdateServer "http://your-server/updates" -ExeName "MonthlyUpdates.exe"
 
+Set-ExecutionPolicy Bypass -Scope CurrentUser -Force
+
 param(
     [Parameter(Mandatory=$true)]
     [string]$UpdateServer,
